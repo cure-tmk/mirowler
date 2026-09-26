@@ -53,7 +53,7 @@ describe('notification failures', () => {
       .mockImplementation(async () => new Response('no_service', { status: 404 }))
 
     for (let i = 0; i < MAX_ATTEMPTS + 1; i++) {
-      await retryNotifications(testEnv)
+      await retryNotifications(testEnv, new Date(Date.now() + i * 61 * 60_000))
     }
 
     expect(fetch).toHaveBeenCalledTimes(MAX_ATTEMPTS)

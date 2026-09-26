@@ -12,6 +12,12 @@ A single Cloudflare Worker that serves the admin UI, the API and the cron run. I
 - `src/db`: small functions wrapping D1 queries
 - `migrations`: D1 schema
 
+## Notification delivery
+
+Delivery is at-least-once per (event, channel): each send is preceded by a conditional claim, so overlapping ticks and a re-run of the same run id do not post twice, and a claim left `sending` for 10 minutes is taken over.
+A failed send is retried after 1, 2, 4, 8, 16, 32 and 60 minutes, about two hours in total.
+After 8 attempts the notification becomes `failed` and is shown on the monitor page; the event id in the Slack text lets readers spot the rare duplicate after a timeout.
+
 ## Not here
 
 Business decisions (value parsing, rule evaluation, event decisions) live in core.
