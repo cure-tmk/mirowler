@@ -8,6 +8,11 @@ describe('parseJpy', () => {
     expect(parseJpy('￥980')).toBe(980)
   })
 
+  it('ignores parenthesized suffixes', () => {
+    expect(parseJpy('123,456円（税込）')).toBe(123456)
+    expect(parseJpy('1,000円(税抜)')).toBe(1000)
+  })
+
   it('returns null when unparsable', () => {
     expect(parseJpy('sold out')).toBeNull()
     expect(parseJpy('')).toBeNull()

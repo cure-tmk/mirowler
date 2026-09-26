@@ -14,10 +14,16 @@ const decodeEntities = (raw: string): string =>
 export const htmlRewriterExtractor: Extractor = async (fetched, config) => {
   let phase: 'before' | 'inside' | 'done' = 'before'
   let text = ''
+  let attr = null as string | null
   await new HTMLRewriter()
     .on(config.selector, {
       element(el) {
         if (phase !== 'before') {
+          return
+        }
+        if (config.type === 'css_attr') {
+          attr = el.getAttribute(config.attribute)
+          phase = 'done'
           return
         }
         phase = 'inside'
@@ -39,6 +45,12 @@ export const htmlRewriterExtractor: Extractor = async (fetched, config) => {
     .arrayBuffer()
   if (phase === 'before') {
     return { value: null, reason: `no element matched selector: ${config.selector}` }
+  }
+  if (config.type === 'css_attr') {
+    if (attr === null) {
+      return { value: null, reason: `attribute not found: ${config.attribute}` }
+    }
+    text = attr
   }
   return { value: parseValue(decodeEntities(text).trim(), config.parse) }
 }

@@ -1,6 +1,7 @@
 import type { FetchResult } from '@mirowler/core'
 import { describe, expect, it } from 'vitest'
 import { htmlRewriterExtractor } from '../src/adapters/htmlRewriterExtractor'
+import inStock from './fixtures/target-a/in-stock.html?raw'
 
 const page = (body: string): FetchResult => ({
   status: 200,
@@ -36,5 +37,25 @@ describe('htmlRewriterExtractor', () => {
     expect(await htmlRewriterExtractor(page(html), { type: 'css_text', selector: '#price', parse: 'jpy' })).toEqual({
       value: { jpy: 12800 },
     })
+  })
+
+  it('reads an attribute of the first match', async () => {
+    const result = await htmlRewriterExtractor(page(inStock), {
+      type: 'css_attr',
+      selector: '#goodsdetail_cart input.btn_cart_l_',
+      attribute: 'value',
+      parse: 'text',
+    })
+    expect(result).toEqual({ value: { text: 'カートに入れる' } })
+  })
+
+  it('returns a null value when the attribute is absent', async () => {
+    const result = await htmlRewriterExtractor(page('<input class="b">'), {
+      type: 'css_attr',
+      selector: '.b',
+      attribute: 'value',
+      parse: 'text',
+    })
+    expect(result).toEqual({ value: null, reason: 'attribute not found: value' })
   })
 })
