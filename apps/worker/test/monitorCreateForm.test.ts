@@ -13,7 +13,11 @@ let channelId: string
 const submit = (fields: [string, string][]) =>
   app.request(
     '/monitors',
-    { method: 'POST', headers: { Authorization: authorization }, body: new URLSearchParams(fields) },
+    {
+      method: 'POST',
+      headers: { Authorization: authorization, Origin: 'http://localhost' },
+      body: new URLSearchParams(fields),
+    },
     testEnv,
   )
 

@@ -34,7 +34,7 @@ describe('channels page', () => {
       '/channels',
       {
         method: 'POST',
-        headers: { Authorization: authorization },
+        headers: { Authorization: authorization, Origin: 'http://localhost' },
         body: new URLSearchParams({ displayName: 'Invalid', secretName: 'slack-lower' }),
       },
       testEnv,
