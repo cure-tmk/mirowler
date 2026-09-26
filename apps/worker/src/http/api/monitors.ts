@@ -2,9 +2,19 @@ import { monitorConfigSchema } from '@mirowler/core'
 import { type Context, Hono } from 'hono'
 import { assertPublicHttpsUrl } from '../../adapters/httpFetcher'
 import { findUnknownChannelIds } from '../../db/channels'
-import { getMonitor, insertMonitor, listMonitors, setMonitorEnabled, updateMonitorConfig } from '../../db/monitors'
+import {
+  deleteMonitor,
+  getMonitor,
+  getMonitorHealth,
+  insertMonitor,
+  listMonitorHealth,
+  setMonitorEnabled,
+  updateMonitorConfig,
+} from '../../db/monitors'
+import { getLastValid } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
+import { badRequest } from './badRequest'
 
 const readConfig = async (req: Request, json: boolean): Promise<unknown> => {
   if (json) {
@@ -19,16 +29,22 @@ const isJson = (c: Context<AppEnv>) => c.req.header('content-type')?.includes('a
 const parseConfig = async (c: Context<AppEnv>, json: boolean) => {
   const parsed = monitorConfigSchema.safeParse(await readConfig(c.req.raw, json).catch(() => undefined))
   if (!parsed.success) {
-    return { error: c.json({ error: parsed.error.issues }, 400) }
+    const issues = parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
+    return { error: badRequest(c, 'invalid config', issues) }
   }
   try {
     assertPublicHttpsUrl(parsed.data.source.url)
   } catch (e) {
-    return { error: c.json({ error: String(e) }, 400) }
+    const message = e instanceof Error ? e.message : String(e)
+    return { error: badRequest(c, 'invalid config', [{ path: 'source.url', message }]) }
   }
   const unknown = await findUnknownChannelIds(c.env.DB, parsed.data.channelIds)
   if (unknown.length > 0) {
-    return { error: c.json({ error: `unknown channelIds: ${unknown.join(', ')}` }, 400) }
+    return {
+      error: badRequest(c, 'invalid config', [
+        { path: 'channelIds', message: `unknown channel ids: ${unknown.join(', ')}` },
+      ]),
+    }
   }
   return { config: parsed.data }
 }
@@ -47,7 +63,15 @@ const update = async (c: Context<AppEnv>) => {
 }
 
 export const monitorsApi = new Hono<AppEnv>()
-  .get('/', async (c) => c.json(await listMonitors(c.env.DB)))
+  .get('/', async (c) => c.json(await listMonitorHealth(c.env.DB, new Date())))
+  .get('/:id', async (c) => {
+    const id = c.req.param('id')
+    const [monitor, baseline] = await Promise.all([
+      getMonitorHealth(c.env.DB, id, new Date()),
+      getLastValid(c.env.DB, id),
+    ])
+    return monitor ? c.json({ ...monitor, baseline }) : c.json({ error: 'not found' }, 404)
+  })
   .post('/', async (c) => {
     const json = isJson(c)
     const { config, error } = await parseConfig(c, json)
@@ -58,6 +82,14 @@ export const monitorsApi = new Hono<AppEnv>()
     return json ? c.json({ id }, 201) : c.redirect(`/monitors/${id}`)
   })
   .put('/:id', update)
+  .delete('/:id', async (c) => {
+    const id = c.req.param('id')
+    const result = await deleteMonitor(c.env.DB, id, new Date())
+    if (result === 'missing') {
+      return c.json({ error: 'not found' }, 404)
+    }
+    return result === 'claimed' ? c.json({ error: 'monitor is running' }, 409) : c.json({ id })
+  })
   .post('/:id/edit', update)
   .post('/:id/:action{enable|disable}', async (c) => {
     const id = c.req.param('id')

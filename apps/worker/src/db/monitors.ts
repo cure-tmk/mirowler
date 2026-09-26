@@ -3,6 +3,7 @@ import { type MatchState, type Monitor, type MonitorConfig, monitorConfigSchema 
 export const STALE_MS = 10 * 60 * 1000
 export const DAY_MS = 24 * 60 * 60 * 1000
 const HEALTH_WINDOW = 20
+export const ATTENTION_THRESHOLD = 3
 
 type MonitorRow = {
   id: string
@@ -40,16 +41,12 @@ const toMonitor = (row: MonitorRow): Monitor | null => {
 
 const isPresent = <T>(v: T | null): v is T => v !== null
 
-export const listMonitors = async (db: D1Database): Promise<Monitor[]> => {
-  const { results } = await db.prepare('SELECT * FROM monitors ORDER BY created_at').all<MonitorRow>()
-  return results.map(toMonitor).filter(isPresent)
-}
-
 export type MonitorHealth = Monitor & {
   consecutiveUnknown: number
   failureRate: number | null
   lastRun: { at: string; state: MatchState | null } | null
   delayed: boolean
+  attention: boolean
 }
 
 type HealthRunRow = {
@@ -79,28 +76,32 @@ const toHealth = (row: MonitorRow, runs: HealthRunRow[], now: Date): MonitorHeal
   const firstKnown = runs.findIndex((r) => r.state !== 'unknown')
   const failures = runs.filter((r) => r.state === 'unknown' || r.status === 'error').length
   const last = runs[0]
+  const consecutiveUnknown = firstKnown === -1 ? runs.length : firstKnown
+  const delayed = isDelayed(monitor, row.running_since, now)
   return {
     ...monitor,
-    consecutiveUnknown: firstKnown === -1 ? runs.length : firstKnown,
+    consecutiveUnknown,
     failureRate: runs.length ? failures / runs.length : null,
     lastRun: last ? { at: last.finished_at ?? last.scheduled_at, state: last.state } : null,
-    delayed: isDelayed(monitor, row.running_since, now),
+    delayed,
+    attention: delayed || consecutiveUnknown >= ATTENTION_THRESHOLD,
   }
 }
 
-/** Monitors with health over their last 20 finished runs under the current config. `delayed` means the schedule or a claimed run is overdue. */
-export const listMonitorHealth = async (db: D1Database, now: Date): Promise<MonitorHealth[]> => {
+const queryHealth = async (db: D1Database, now: Date, id?: string): Promise<MonitorHealth[]> => {
+  const byId = (n: number) => (id === undefined ? '' : `AND monitors.id = ?${n}`)
+  const params = id === undefined ? [] : [id]
   const [monitors, runs] = await db.batch([
-    db.prepare('SELECT * FROM monitors ORDER BY created_at'),
+    db.prepare(`SELECT * FROM monitors WHERE 1 ${byId(1)} ORDER BY created_at`).bind(...params),
     db
       .prepare(
         `SELECT monitor_id, scheduled_at, finished_at, status, state FROM (
           SELECT runs.*, row_number() OVER (PARTITION BY runs.monitor_id ORDER BY runs.scheduled_at DESC) AS rn
           FROM runs JOIN monitors ON monitors.id = runs.monitor_id AND monitors.config_version = runs.config_version
-          WHERE runs.status != 'running'
-        ) WHERE rn <= ? ORDER BY monitor_id, rn`,
+          WHERE runs.status != 'running' ${byId(2)}
+        ) WHERE rn <= ?1 ORDER BY monitor_id, rn`,
       )
-      .bind(HEALTH_WINDOW),
+      .bind(HEALTH_WINDOW, ...params),
   ])
   const byMonitor = new Map<string, HealthRunRow[]>()
   for (const r of (runs?.results ?? []) as HealthRunRow[]) {
@@ -110,6 +111,12 @@ export const listMonitorHealth = async (db: D1Database, now: Date): Promise<Moni
     .map((row) => toHealth(row, byMonitor.get(row.id) ?? [], now))
     .filter(isPresent)
 }
+
+/** Monitors with health over their last 20 finished runs under the current config. `delayed` means the schedule or a claimed run is overdue; `attention` is delayed or at least `ATTENTION_THRESHOLD` consecutive unknown runs. */
+export const listMonitorHealth = (db: D1Database, now: Date) => queryHealth(db, now)
+
+export const getMonitorHealth = async (db: D1Database, id: string, now: Date): Promise<MonitorHealth | null> =>
+  (await queryHealth(db, now, id))[0] ?? null
 
 export const getMonitor = async (db: D1Database, id: string): Promise<Monitor | null> => {
   const row = await db.prepare('SELECT * FROM monitors WHERE id = ?').bind(id).first<MonitorRow>()
@@ -149,6 +156,28 @@ export const updateMonitorConfig = async (db: D1Database, id: string, config: Mo
 export type ClaimedMonitor = Monitor & { claimedAt: string }
 
 const CLAIMABLE = '(running_since IS NULL OR running_since < ?2)'
+
+/** Permanently deletes the monitor with its runs, events and notifications in one transaction, unless it holds a live claim (same stale window as claiming). */
+export const deleteMonitor = async (
+  db: D1Database,
+  id: string,
+  now: Date,
+): Promise<'deleted' | 'claimed' | 'missing'> => {
+  const unclaimed = `EXISTS (SELECT 1 FROM monitors WHERE id = ?1 AND ${CLAIMABLE})`
+  const results = await db.batch([
+    ...[
+      `DELETE FROM notifications WHERE event_id IN (SELECT id FROM events WHERE monitor_id = ?1) AND ${unclaimed}`,
+      `DELETE FROM events WHERE monitor_id = ?1 AND ${unclaimed}`,
+      `DELETE FROM runs WHERE monitor_id = ?1 AND ${unclaimed}`,
+      `DELETE FROM monitors WHERE id = ?1 AND ${CLAIMABLE}`,
+    ].map((sql) => db.prepare(sql).bind(id, new Date(now.getTime() - STALE_MS).toISOString())),
+    db.prepare('SELECT 1 FROM monitors WHERE id = ?').bind(id),
+  ])
+  if (results[3]?.meta.changes === 1) {
+    return 'deleted'
+  }
+  return results[4]?.results.length ? 'claimed' : 'missing'
+}
 
 /** Claimed rows with an invalid config are released with `next_run_at` deferred by a day so they do not keep taking a claim slot. */
 const toClaimed = async (db: D1Database, rows: MonitorRow[], now: string): Promise<ClaimedMonitor[]> => {
