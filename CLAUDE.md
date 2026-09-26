@@ -27,6 +27,7 @@ This file is the tool-specific entry point Claude Code follows in this repositor
 - Basic rules: `.claude/rules/repo-basics.md`
 - Verification boundary: `.claude/rules/verification.md`
 - Commit message convention: `.claude/rules/commit-message.md`
+- Issue and PR writing: `.claude/rules/writing-issues-and-prs.md`
 - Coding style: `.claude/rules/coding-styles-common.md`, `.claude/rules/coding-styles-core.md`, `.claude/rules/coding-styles-worker.md`
 - Testing: `.claude/rules/testing.md`
 - Hooks configuration: `.claude/settings.json`

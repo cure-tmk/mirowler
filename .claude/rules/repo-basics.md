@@ -16,6 +16,7 @@ The minimal rules Claude Code follows first in this repository.
 - Don't mix the responsibilities of `packages/core` and `apps/worker` (boundaries are in `coding-styles-core.md` and `coding-styles-worker.md`)
 - Only commit, push, deploy, run `wrangler login`, or create a D1 database when explicitly requested
 - Never write secrets (Slack webhook URLs, etc.) into code, config, or logs
+- Issues follow `.github/ISSUE_TEMPLATE/task.md` and PRs follow `.github/pull_request_template.md`; altitude rules are in `writing-issues-and-prs.md`
 
 ## What not to do
 
