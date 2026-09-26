@@ -21,9 +21,10 @@ Business decisions (value parsing, rule evaluation, event decisions) live in cor
 ```sh
 pnpm -F @mirowler/worker migrate:local
 pnpm dev
+curl 'http://localhost:8787/__scheduled?cron=*+*+*+*+*'
 ```
 
-Put secrets (`ADMIN_BASIC_AUTH=user:pass`, Slack webhook URLs, etc.) in `apps/worker/.dev.vars`.
+`dev` runs `wrangler dev --test-scheduled`, which exposes `/__scheduled` to trigger the cron handler. Put secrets (`ADMIN_BASIC_AUTH=user:pass`, Slack webhook URLs, etc.) in `apps/worker/.dev.vars`. Full walkthrough: root [README](../../README.md#setup).
 
 ## Checks
 
