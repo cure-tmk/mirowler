@@ -1,7 +1,7 @@
 import { applyD1Migrations } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import type { MonitorConfig } from '@mirowler/core'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { insertMonitor } from '../src/db/monitors'
 import { runNow } from '../src/scheduled'
 
@@ -23,6 +23,8 @@ beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
   vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('<h1>Example Domain</h1>'))
 })
+
+afterAll(() => vi.restoreAllMocks())
 
 describe('runNow', () => {
   it('records a run without an event, a baseline or a schedule change', async () => {

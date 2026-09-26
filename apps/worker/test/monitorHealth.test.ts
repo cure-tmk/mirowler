@@ -4,6 +4,7 @@ import type { MatchState, MonitorConfig } from '@mirowler/core'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { insertMonitor } from '../src/db/monitors'
 import { app } from '../src/http/app'
+import { ATTENTION_THRESHOLD } from '../src/http/ui/pages'
 
 const testEnv = { ...env, ADMIN_BASIC_AUTH: 'admin:s3cret' }
 const authorization = `Basic ${btoa('admin:s3cret')}`
@@ -45,17 +46,18 @@ beforeEach(async () => {
 })
 
 describe('monitor health on the list page', () => {
-  it('flags only the monitor with 3 consecutive unknown runs', async () => {
+  it('flags only the monitor with consecutive unknown runs at the threshold', async () => {
     const healthy = await insertMonitor(env.DB, config('healthy'), minutesAgo(1))
     const flaky = await insertMonitor(env.DB, config('flaky'), minutesAgo(1))
     await seedRuns(healthy, ['matched', 'unknown', 'not_matched'])
-    await seedRuns(flaky, ['unknown', 'unknown', 'unknown', 'matched'])
+    await seedRuns(flaky, [...Array<MatchState>(ATTENTION_THRESHOLD).fill('unknown'), 'matched'])
 
     const html = await listPage()
 
     expect(rowFor(html, 'healthy')).not.toContain('ATTENTION')
     expect(rowFor(html, 'flaky')).toContain('<strong>ATTENTION</strong>')
-    expect(rowFor(html, 'flaky')).toContain('<td>3</td><td>75%</td>')
+    const rate = Math.round((ATTENTION_THRESHOLD / (ATTENTION_THRESHOLD + 1)) * 100)
+    expect(rowFor(html, 'flaky')).toContain(`<td>${ATTENTION_THRESHOLD}</td><td>${rate}%</td>`)
   })
 
   it('marks a monitor whose next run is far in the past as delayed', async () => {

@@ -1,7 +1,7 @@
 import type { Child } from 'hono/jsx'
 
 export const Layout = ({ title, children }: { title: string; children: Child }) => (
-  <html lang="ja">
+  <html lang="en">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />

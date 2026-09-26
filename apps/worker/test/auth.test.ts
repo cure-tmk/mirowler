@@ -1,4 +1,4 @@
-import { applyD1Migrations, type D1Migration } from 'cloudflare:test'
+import { applyD1Migrations } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { app } from '../src/http/app'
@@ -7,7 +7,7 @@ const withSecret = { ...env, ADMIN_BASIC_AUTH: 'admin:s3cret' }
 const basic = (credential: string) => ({ headers: { Authorization: `Basic ${btoa(credential)}` } })
 
 beforeAll(async () => {
-  await applyD1Migrations(env.DB, (env as unknown as { TEST_MIGRATIONS: D1Migration[] }).TEST_MIGRATIONS)
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
 })
 
 describe('admin auth', () => {
@@ -35,5 +35,23 @@ describe('admin auth', () => {
   it('returns 503 when the secret is not configured', async () => {
     const res = await app.request('/', basic('admin:s3cret'), { ...env, ADMIN_BASIC_AUTH: '' })
     expect(res.status).toBe(503)
+  })
+
+  it('rejects a form post from a foreign origin', async () => {
+    const res = await app.request(
+      '/channels',
+      {
+        method: 'POST',
+        headers: { Authorization: `Basic ${btoa('admin:s3cret')}`, Origin: 'https://evil.example' },
+        body: new URLSearchParams({ displayName: 'x', secretName: 'X' }),
+      },
+      withSecret,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('lets a non-browser client post without an origin', async () => {
+    const res = await app.request('/api/monitors/missing/run', { method: 'POST', ...basic('admin:s3cret') }, withSecret)
+    expect(res.status).toBe(404)
   })
 })
