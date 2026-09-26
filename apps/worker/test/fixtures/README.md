@@ -18,3 +18,9 @@ Selectors these fixtures are meant to keep working:
 - Cart button: `#goodsdetail_cart input.btn_cart_l_` (stock shows in the `value` attribute, readable with a `css_attr` extractor on `value`)
 - Product name: `h1.goods_name_`
 - Price: `.price_box_0 p.price_` (text like `123,456円（税込）`, which the `jpy` parser reads as 123456)
+
+## Monitor config used in tests
+
+- Extractor: `css_attr` on `#goodsdetail_cart input.btn_cart_l_`, attribute `value`, parse `text`
+- Evaluator: `rule` with `contains` `カートに入れる`, trigger `on_enter`
+- Only the positive marker counts as `matched`; the absence of `在庫なし` alone never does, because it is also absent on a layout change or a block page
