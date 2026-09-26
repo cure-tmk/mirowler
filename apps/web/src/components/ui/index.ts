@@ -1,6 +1,7 @@
 export { AbsoluteCenter, type AbsoluteCenterProps } from './absolute-center'
 export { Badge, type BadgeProps } from './badge'
 export { Button, ButtonGroup, type ButtonGroupProps, type ButtonProps } from './button'
+export * as Checkbox from './checkbox'
 export * as Field from './field'
 export { Group, type GroupProps } from './group'
 export { Heading, type HeadingProps } from './heading'
