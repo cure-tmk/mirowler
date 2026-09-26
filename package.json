@@ -13,7 +13,7 @@
     "check:ci": "biome ci --diagnostic-level=error",
     "fix": "biome check --write --diagnostic-level=error",
     "format": "biome format --write",
-    "dev": "pnpm -F @mirowler/worker dev",
+    "dev": "turbo run dev",
     "ai:verify": "pnpm check && pnpm typecheck && pnpm test",
     "ai:verify:fast": "pnpm check && pnpm typecheck"
   },

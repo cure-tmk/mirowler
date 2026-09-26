@@ -1,0 +1,28 @@
+{
+  "name": "@mirowler/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "panda codegen --silent",
+    "dev": "pnpm codegen && vite",
+    "build": "pnpm codegen && vite build",
+    "typecheck": "pnpm codegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@ark-ui/react": "5.39.2",
+    "@tanstack/react-query": "5.103.2",
+    "@tanstack/react-router": "1.170.39",
+    "hono": "4.13.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@mirowler/worker": "workspace:*",
+    "@pandacss/dev": "1.12.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "vite": "8.3.1"
+  }
+}
