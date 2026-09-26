@@ -16,6 +16,12 @@ A single Cloudflare Worker that serves the admin UI, the API and the cron run. I
 
 Business decisions (value parsing, rule evaluation, event decisions) live in core.
 
+## Admin auth
+
+Everything except `/healthz` requires Basic auth against the Worker Secret `ADMIN_BASIC_AUTH` (`user:password`, set with `wrangler secret put ADMIN_BASIC_AUTH`); without it the Worker answers 503.
+Cloudflare Access is not used because it cannot protect a `*.workers.dev` hostname and there is no custom zone yet.
+Once a custom domain is added, put an Access application in front of it and remove the `auth` middleware.
+
 ## Run locally
 
 ```sh
