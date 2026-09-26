@@ -1,4 +1,6 @@
-import type { MatchState, Observation, ObservedValue } from '@mirowler/core'
+import type { MatchState, MonitorEvent, Observation, ObservedValue } from '@mirowler/core'
+import { listEventsByRuns } from './events'
+import { listNotificationsByEvents, type MonitorNotification } from './notifications'
 
 type RunRow = {
   run_id: string
@@ -17,6 +19,7 @@ type RunRow = {
 
 export type Run = {
   runId: string
+  configVersion: number
   scheduledAt: string
   startedAt: string | null
   finishedAt: string | null
@@ -74,6 +77,7 @@ export const listRunsByMonitor = async (db: D1Database, monitorId: string, limit
     .all<RunRow>()
   return results.map((r) => ({
     runId: r.run_id,
+    configVersion: r.config_version,
     scheduledAt: r.scheduled_at,
     startedAt: r.started_at,
     finishedAt: r.finished_at,
@@ -82,6 +86,28 @@ export const listRunsByMonitor = async (db: D1Database, monitorId: string, limit
     state: r.state,
     reason: r.reason,
     error: r.error,
+  }))
+}
+
+export type HistoryEvent = MonitorEvent & { notifications: MonitorNotification[] }
+
+export type HistoryRun = Run & { events: HistoryEvent[] }
+
+export const listHistoryByMonitor = async (db: D1Database, monitorId: string, limit = 50): Promise<HistoryRun[]> => {
+  const runs = await listRunsByMonitor(db, monitorId, limit)
+  const events = await listEventsByRuns(
+    db,
+    runs.map((r) => r.runId),
+  )
+  const notifications = await listNotificationsByEvents(
+    db,
+    events.map((e) => e.id),
+  )
+  return runs.map((r) => ({
+    ...r,
+    events: events
+      .filter((e) => e.runId === r.runId)
+      .map((e) => ({ ...e, notifications: notifications.filter((n) => n.eventId === e.id) })),
   }))
 }
 

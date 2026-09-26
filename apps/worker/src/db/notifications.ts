@@ -87,3 +87,16 @@ export const listNotificationsByMonitor = async (
     .all<MonitorNotification>()
   return results
 }
+
+export const listNotificationsByEvents = async (db: D1Database, eventIds: string[]): Promise<MonitorNotification[]> => {
+  const { results } = await db
+    .prepare(
+      `SELECT n.event_id AS eventId, e.occurred_at AS occurredAt, COALESCE(c.display_name, n.channel_id) AS channel,
+       n.status, n.attempts, n.last_error AS lastError, n.sent_at AS sentAt
+       FROM notifications n JOIN events e ON e.id = n.event_id LEFT JOIN channels c ON c.id = n.channel_id
+       WHERE n.event_id IN (SELECT value FROM json_each(?)) ORDER BY n.channel_id`,
+    )
+    .bind(JSON.stringify(eventIds))
+    .all<MonitorNotification>()
+  return results
+}

@@ -76,6 +76,54 @@ describe('notification failures', () => {
   })
 })
 
+describe('monitor history', () => {
+  it('shows each run with its reason, events and per-channel notification status', async () => {
+    const T1 = '2026-01-01T01:00:00.000Z'
+    const monitorId = await insertMonitor(env.DB, config, T0)
+    const unknownRun = `${monitorId}:${T0}`
+    const eventRun = `${monitorId}:${T1}`
+    await insertRun(env.DB, { runId: unknownRun, monitorId, configVersion: 1, scheduledAt: T0, startedAt: T0 })
+    await insertRun(env.DB, { runId: eventRun, monitorId, configVersion: 1, scheduledAt: T1, startedAt: T1 })
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE runs SET status = 'done', state = 'unknown', reason = 'selector missed' WHERE run_id = ?`,
+      ).bind(unknownRun),
+      env.DB.prepare(
+        `UPDATE runs SET status = 'done', state = 'matched', reason = 'price dropped' WHERE run_id = ?`,
+      ).bind(eventRun),
+      env.DB.prepare(
+        'INSERT INTO events (id, run_id, monitor_id, kind, summary, occurred_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ).bind(`${eventRun}:entered`, eventRun, monitorId, 'entered', 'In stock', T1),
+    ])
+    const sent = await insertChannel(env.DB, { displayName: 'ok-channel', secretName: 'SLACK_TEST' }, T0)
+    const failed = await insertChannel(env.DB, { displayName: 'broken-channel', secretName: 'SLACK_TEST' }, T0)
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO notifications (event_id, channel_id, status, attempts, sent_at) VALUES (?, ?, 'sent', 1, ?)`,
+      ).bind(`${eventRun}:entered`, sent, T1),
+      env.DB.prepare(
+        `INSERT INTO notifications (event_id, channel_id, status, attempts, last_error) VALUES (?, ?, 'failed', ?, '500 oops')`,
+      ).bind(`${eventRun}:entered`, failed, MAX_ATTEMPTS),
+    ])
+
+    const res = await app.request(
+      `/monitors/${monitorId}`,
+      { headers: { Authorization: `Basic ${btoa('admin:s3cret')}` } },
+      testEnv,
+    )
+    const blocks = (await res.text()).split('<tbody>').slice(1)
+
+    expect(blocks).toHaveLength(2)
+    const [eventBlock, unknownBlock] = blocks as [string, string]
+    expect(eventBlock).toContain('price dropped')
+    expect(eventBlock).toContain('entered')
+    expect(eventBlock).toMatch(/ok-channel<\/td><td>sent</)
+    expect(eventBlock).toMatch(/broken-channel<\/td><td><strong>FAILED<\/strong>/)
+    expect(unknownBlock).toContain('selector missed')
+    expect(unknownBlock).not.toContain('entered')
+  })
+})
+
 describe('slackNotifier', () => {
   it('ends the message text with the event id', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('ok'))
