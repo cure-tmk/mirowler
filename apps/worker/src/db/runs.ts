@@ -96,10 +96,22 @@ export const beginRun = async (
   return inserted?.meta.changes === 1
 }
 
-export const listRunsByMonitor = async (db: D1Database, monitorId: string, limit = 50): Promise<Run[]> => {
+export type RunPosition = { scheduledAt: string; runId: string }
+
+/** Runs newest first by `scheduled_at` then `run_id`; `after` continues strictly past that position. */
+export const listRunsByMonitor = async (
+  db: D1Database,
+  monitorId: string,
+  limit = 50,
+  after?: RunPosition,
+): Promise<Run[]> => {
   const { results } = await db
-    .prepare('SELECT * FROM runs WHERE monitor_id = ? ORDER BY scheduled_at DESC LIMIT ?')
-    .bind(monitorId, limit)
+    .prepare(
+      `SELECT * FROM runs WHERE monitor_id = ?1
+        AND (?3 IS NULL OR scheduled_at < ?3 OR (scheduled_at = ?3 AND run_id < ?4))
+       ORDER BY scheduled_at DESC, run_id DESC LIMIT ?2`,
+    )
+    .bind(monitorId, limit, after?.scheduledAt ?? null, after?.runId ?? null)
     .all<RunRow>()
   return results.map((r) => ({
     runId: r.run_id,
@@ -119,8 +131,13 @@ export type HistoryEvent = MonitorEvent & { notifications: MonitorNotification[]
 
 export type HistoryRun = Run & { events: HistoryEvent[] }
 
-export const listHistoryByMonitor = async (db: D1Database, monitorId: string, limit = 50): Promise<HistoryRun[]> => {
-  const runs = await listRunsByMonitor(db, monitorId, limit)
+export const listHistoryByMonitor = async (
+  db: D1Database,
+  monitorId: string,
+  limit = 50,
+  after?: RunPosition,
+): Promise<HistoryRun[]> => {
+  const runs = await listRunsByMonitor(db, monitorId, limit, after)
   const events = await listEventsByRuns(
     db,
     runs.map((r) => r.runId),

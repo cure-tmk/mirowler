@@ -18,8 +18,6 @@ import { isValidChannelInput } from '../api/channels'
 import { Layout } from './Layout'
 import { defaultFormValues, type FormErrors, type FormValues, formToConfig, MonitorForm, readForm } from './monitorForm'
 
-export const ATTENTION_THRESHOLD = 3
-
 type History = Awaited<ReturnType<typeof listHistoryByMonitor>>
 
 const MessagePage = ({ title, message, back }: { title: string; message: string; back: string }) => (
@@ -127,7 +125,7 @@ const MonitorsPage = ({
               {m.nextRunAt}
               {m.delayed && ' (delayed)'}
             </td>
-            <td>{(m.delayed || m.consecutiveUnknown >= ATTENTION_THRESHOLD) && <strong>ATTENTION</strong>}</td>
+            <td>{m.attention && <strong>ATTENTION</strong>}</td>
             <td>{m.consecutiveUnknown}</td>
             <td>{m.failureRate === null ? '' : `${Math.round(m.failureRate * 100)}%`}</td>
             <td>{m.lastRun && `${m.lastRun.at} ${m.lastRun.state ?? ''}`}</td>

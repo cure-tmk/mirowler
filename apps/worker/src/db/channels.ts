@@ -42,3 +42,39 @@ export const insertChannel = async (
     .run()
   return id
 }
+
+export const updateChannel = async (db: D1Database, id: string, input: { displayName: string; secretName: string }) => {
+  const { meta } = await db
+    .prepare('UPDATE channels SET display_name = ?, secret_name = ? WHERE id = ?')
+    .bind(input.displayName, input.secretName, id)
+    .run()
+  return meta.changes === 1
+}
+
+export type ChannelUser = { id: string; name: string }
+
+/** Deletes the channel in one transaction unless a monitor config references it; its queued notifications become `failed`. */
+export const deleteChannel = async (
+  db: D1Database,
+  id: string,
+): Promise<{ status: 'deleted' | 'missing' } | { status: 'in_use'; monitors: ChannelUser[] }> => {
+  const users = `SELECT m.id, m.name FROM monitors m, json_each(m.config_json, '$.channelIds') j WHERE j.value = ?1`
+  const [exists, deleted, inUse] = await db.batch([
+    db.prepare('SELECT 1 FROM channels WHERE id = ?1').bind(id),
+    db.prepare(`DELETE FROM channels WHERE id = ?1 AND NOT EXISTS (${users})`).bind(id),
+    db.prepare(`${users} ORDER BY m.created_at`).bind(id),
+    db
+      .prepare(
+        `UPDATE notifications SET status = 'failed', next_attempt_at = NULL, last_error = 'channel deleted'
+         WHERE channel_id = ?1 AND status IN ('pending', 'sending') AND NOT EXISTS (SELECT 1 FROM channels WHERE id = ?1)`,
+      )
+      .bind(id),
+  ])
+  if (deleted?.meta.changes === 1) {
+    return { status: 'deleted' }
+  }
+  if (!exists?.results.length) {
+    return { status: 'missing' }
+  }
+  return { status: 'in_use', monitors: (inUse?.results ?? []) as ChannelUser[] }
+}

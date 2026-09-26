@@ -159,7 +159,10 @@ describe('monitor edit', () => {
     const res = await edit(id, { ...config, channelIds: ['ch-a', 'ch-missing'] })
 
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'unknown channelIds: ch-missing' })
+    expect(await res.json()).toEqual({
+      error: 'invalid config',
+      issues: [{ path: 'channelIds', message: 'unknown channel ids: ch-missing' }],
+    })
   })
 
   it('returns 404 for an unknown monitor', async () => {

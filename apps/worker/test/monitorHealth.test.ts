@@ -2,9 +2,8 @@ import { applyD1Migrations } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import type { MatchState, MonitorConfig } from '@mirowler/core'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { insertMonitor } from '../src/db/monitors'
+import { ATTENTION_THRESHOLD, insertMonitor } from '../src/db/monitors'
 import { app } from '../src/http/app'
-import { ATTENTION_THRESHOLD } from '../src/http/ui/pages'
 
 const testEnv = { ...env, ADMIN_BASIC_AUTH: 'admin:s3cret' }
 const authorization = `Basic ${btoa('admin:s3cret')}`
