@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
-import { listChannels } from '../../db/channels'
+import { type Channel, insertChannel, listChannels } from '../../db/channels'
 import { getMonitor, listMonitors } from '../../db/monitors'
 import { listRunsByMonitor } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
 import { sendTestMessage } from '../../scheduled/retryNotifications'
+import { isValidChannelInput } from '../api/channels'
 import { Layout } from './Layout'
 
 const exampleConfig = JSON.stringify(
@@ -21,9 +22,70 @@ const exampleConfig = JSON.stringify(
   2,
 )
 
+const ChannelsPage = ({
+  channels,
+  error,
+  input,
+}: {
+  channels: Channel[]
+  error?: string
+  input?: { displayName: string; secretName: string }
+}) => (
+  <Layout title="Channels">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Kind</th>
+          <th>ID</th>
+          <th>Secret name</th>
+          <th>Created</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {channels.map((ch) => (
+          <tr>
+            <td>{ch.displayName}</td>
+            <td>{ch.kind}</td>
+            <td>{ch.id}</td>
+            <td>{ch.secretName}</td>
+            <td>{ch.createdAt}</td>
+            <td>
+              <form method="post" action={`/channels/${ch.id}/test`}>
+                <button type="submit">Send test</button>
+              </form>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <h2>Add channel</h2>
+    {error && <p role="alert">{error}</p>}
+    <form method="post" action="/channels">
+      <label>
+        Display name <input name="displayName" required value={input?.displayName} />
+      </label>
+      <br />
+      <label>
+        Secret name <input name="secretName" required pattern="[A-Z0-9_]+" value={input?.secretName} />
+      </label>
+      <br />
+      <label>
+        Kind{' '}
+        <select name="kind" disabled>
+          <option value="slack_webhook">slack_webhook</option>
+        </select>
+      </label>
+      <br />
+      <button type="submit">Add</button>
+    </form>
+  </Layout>
+)
+
 export const pages = new Hono<AppEnv>()
   .get('/', async (c) => {
-    const [monitors, channels] = await Promise.all([listMonitors(c.env.DB), listChannels(c.env.DB)])
+    const monitors = await listMonitors(c.env.DB)
     return c.html(
       <Layout title="Monitors">
         <table>
@@ -44,29 +106,6 @@ export const pages = new Hono<AppEnv>()
                 <td>{m.source.url}</td>
                 <td>{m.enabled ? 'yes' : 'no'}</td>
                 <td>{m.nextRunAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <h2>Channels</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>ID</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {channels.map((ch) => (
-              <tr>
-                <td>{ch.displayName}</td>
-                <td>{ch.id}</td>
-                <td>
-                  <form method="post" action={`/channels/${ch.id}/test`}>
-                    <button type="submit">Send test</button>
-                  </form>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -136,6 +175,26 @@ export const pages = new Hono<AppEnv>()
       409,
     )
   })
+  .get('/channels', async (c) => c.html(<ChannelsPage channels={await listChannels(c.env.DB)} />))
+  .post('/channels', async (c) => {
+    const form = await c.req.parseBody()
+    const input = { displayName: form.displayName, secretName: form.secretName }
+    if (!isValidChannelInput(input)) {
+      return c.html(
+        <ChannelsPage
+          channels={await listChannels(c.env.DB)}
+          error="Display name is required and secret name may only contain A-Z, 0-9 and _"
+          input={{
+            displayName: typeof input.displayName === 'string' ? input.displayName : '',
+            secretName: typeof input.secretName === 'string' ? input.secretName : '',
+          }}
+        />,
+        400,
+      )
+    }
+    await insertChannel(c.env.DB, input, new Date().toISOString())
+    return c.redirect('/channels')
+  })
   .post('/channels/:id/test', async (c) => {
     const result = await sendTestMessage(c.env, c.req.param('id'))
     const [message, status] = !result
@@ -146,7 +205,7 @@ export const pages = new Hono<AppEnv>()
     return c.html(
       <Layout title="Send test">
         <p>{message}</p>
-        <a href="/">Back</a>
+        <a href="/channels">Back</a>
       </Layout>,
       status,
     )
