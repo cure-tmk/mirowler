@@ -7,7 +7,7 @@ A single Cloudflare Worker that serves the admin UI, the API and the cron run. I
 ## Directories
 
 - `src/http`: Hono API, admin UI (hono/jsx) and Basic auth
-- `src/scheduled`: cron handler that claims due monitors, runs them and retries pending notifications
+- `src/scheduled`: cron handler that claims due monitors, runs them, retries pending notifications and deletes history older than the `RETENTION_DAYS` var (default 30, in `wrangler.jsonc`)
 - `src/adapters`: core port implementations (HTTP fetch, HTMLRewriter extraction, Slack notification)
 - `src/db`: small functions wrapping D1 queries
 - `migrations`: D1 schema

@@ -4,12 +4,13 @@ import { httpFetcher } from '../adapters/httpFetcher'
 import { insertEvent } from '../db/events'
 import { claimById, claimDue, finishRun } from '../db/monitors'
 import { insertPending } from '../db/notifications'
-import { completeRun, failRun, getLastValid, insertRun } from '../db/runs'
+import { completeRun, deleteRunsBefore, failRun, getLastValid, insertRun } from '../db/runs'
 import type { Bindings } from '../env'
 import { deliver, retryNotifications } from './retryNotifications'
 
 const STALE_MS = 10 * 60 * 1000
 const CLAIM_LIMIT = 20
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_MS).toISOString()
 
@@ -74,4 +75,5 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (_cont
   const monitors = await claimDue(env.DB, now.toISOString(), staleBefore(now), CLAIM_LIMIT)
   await Promise.allSettled(monitors.map((m) => runMonitor(env, m, now)))
   await retryNotifications(env)
+  await deleteRunsBefore(env.DB, new Date(now.getTime() - env.RETENTION_DAYS * DAY_MS).toISOString())
 }
