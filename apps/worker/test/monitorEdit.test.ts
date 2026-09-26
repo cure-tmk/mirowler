@@ -6,7 +6,7 @@ import { insertMonitor, updateMonitorConfig } from '../src/db/monitors'
 import { app } from '../src/http/app'
 import { scheduled } from '../src/scheduled'
 
-const T0 = '2026-01-01T00:00:00.000Z'
+const T0 = new Date(Date.now() - 3_600_000).toISOString()
 
 const config: MonitorConfig = {
   name: 'stock',
