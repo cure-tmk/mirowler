@@ -2,6 +2,7 @@ import type { ExtractorConfig, ObservedValue } from './monitor'
 
 export function parseJpy(text: string): number | null {
   const normalized = text
+    .replace(/[（(][^）)]*[）)]/g, '')
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/[¥￥,，円\s]/g, '')
   if (normalized === '') {

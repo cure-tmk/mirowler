@@ -20,11 +20,17 @@ export const scheduleSchema = z.discriminatedUnion('type', [
 
 export const sourceSchema = z.object({ type: z.literal('http'), url: z.url() })
 
-export const extractorSchema = z.object({
-  type: z.literal('css_text'),
-  selector: z.string().min(1),
-  parse: z.enum(['text', 'jpy']),
-})
+const parseModeSchema = z.enum(['text', 'jpy'])
+
+export const extractorSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('css_text'), selector: z.string().min(1), parse: parseModeSchema }),
+  z.object({
+    type: z.literal('css_attr'),
+    selector: z.string().min(1),
+    attribute: z.string().min(1),
+    parse: parseModeSchema,
+  }),
+])
 
 export const evaluatorSchema = z
   .discriminatedUnion('type', [

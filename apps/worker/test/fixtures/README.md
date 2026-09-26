@@ -15,6 +15,6 @@ Selectors these fixtures are meant to keep working:
 
 - Availability item: `a.block-variation--item.active` (its text contains `在庫なし` only when out of stock; absent on a layout change)
 - Availability marker: `a.block-variation--item.active .block-variation--item-nostock` (absent both in stock and on a layout change)
-- Cart button: `#goodsdetail_cart input.btn_cart_l_` (stock shows only in the `inactive_` class and the `value` attribute, not in text)
+- Cart button: `#goodsdetail_cart input.btn_cart_l_` (stock shows in the `value` attribute, readable with a `css_attr` extractor on `value`)
 - Product name: `h1.goods_name_`
-- Price: `.price_box_0 p.price_`
+- Price: `.price_box_0 p.price_` (text like `123,456円（税込）`, which the `jpy` parser reads as 123456)
