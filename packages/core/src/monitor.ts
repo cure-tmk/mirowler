@@ -60,6 +60,11 @@ export const evaluatorSchema = z
 
 export const triggerSchema = z.object({ type: z.enum(['on_enter', 'on_value_change']) })
 
+const fieldMatchesParse = {
+  message: 'field must match the extractor parse mode',
+  path: ['evaluator', 'field'],
+}
+
 /** Monitor configuration accepted by the admin API and stored as-is. */
 export const monitorConfigSchema = z
   .object({
@@ -74,10 +79,12 @@ export const monitorConfigSchema = z
       .min(1)
       .refine((ids) => new Set(ids).size === ids.length, 'must be unique'),
   })
-  .refine((c) => c.evaluator.field === c.extractor.parse, {
-    message: 'field must match the extractor parse mode',
-    path: ['evaluator', 'field'],
-  })
+  .refine((c) => c.evaluator.field === c.extractor.parse, fieldMatchesParse)
+
+/** Input of a one-off preview: the parts of a monitor config that fetch, extract and evaluate. */
+export const previewInputSchema = z
+  .object({ source: sourceSchema, extractor: extractorSchema, evaluator: evaluatorSchema.optional() })
+  .refine((c) => c.evaluator === undefined || c.evaluator.field === c.extractor.parse, fieldMatchesParse)
 
 export type Schedule = z.infer<typeof scheduleSchema>
 export type Source = z.infer<typeof sourceSchema>

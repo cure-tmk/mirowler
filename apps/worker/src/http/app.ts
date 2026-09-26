@@ -3,6 +3,7 @@ import { csrf } from 'hono/csrf'
 import type { AppEnv } from '../env'
 import { channelsApi } from './api/channels'
 import { monitorsApi } from './api/monitors'
+import { previewApi } from './api/preview'
 import { runsApi } from './api/runs'
 import { auth } from './auth'
 import { pages } from './ui/pages'
@@ -17,4 +18,5 @@ export const app = new Hono<AppEnv>()
   .route('/api/monitors', monitorsApi)
   .route('/api/monitors', runsApi)
   .route('/api/channels', channelsApi)
+  .route('/api/preview', previewApi)
   .route('/', pages)

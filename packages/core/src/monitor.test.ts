@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractorSchema, type MonitorConfig, monitorConfigSchema } from './monitor'
+import { extractorSchema, type MonitorConfig, monitorConfigSchema, previewInputSchema } from './monitor'
 
 describe('extractorSchema', () => {
   it('accepts css_text and css_attr', () => {
@@ -62,5 +62,16 @@ describe('monitorConfigSchema', () => {
       path: ['evaluator', 'field'],
       message: 'field must match the extractor parse mode',
     })
+  })
+})
+
+describe('previewInputSchema', () => {
+  const source = { type: 'http', url: 'https://example.com' }
+  const extractor = { type: 'css_text', selector: '.price', parse: 'jpy' }
+
+  it('rejects an evaluator field that differs from the parse mode', () => {
+    const evaluator = { type: 'rule', field: 'text', op: 'contains', value: 'x' }
+    const result = previewInputSchema.safeParse({ source, extractor, evaluator })
+    expect(result.error?.issues[0]?.path).toEqual(['evaluator', 'field'])
   })
 })
