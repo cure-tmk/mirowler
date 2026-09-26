@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { type Channel, insertChannel, listChannels } from '../../db/channels'
 import { getMonitor, listMonitors } from '../../db/monitors'
+import { listNotificationsByMonitor } from '../../db/notifications'
 import { listRunsByMonitor } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
@@ -130,7 +131,10 @@ export const pages = new Hono<AppEnv>()
     if (!monitor) {
       return c.notFound()
     }
-    const runs = await listRunsByMonitor(c.env.DB, monitor.id)
+    const [runs, notifications] = await Promise.all([
+      listRunsByMonitor(c.env.DB, monitor.id),
+      listNotificationsByMonitor(c.env.DB, monitor.id),
+    ])
     return c.html(
       <Layout title={monitor.name}>
         <p>{monitor.source.url}</p>
@@ -155,6 +159,33 @@ export const pages = new Hono<AppEnv>()
                 <td>{r.state}</td>
                 <td>{r.value ? JSON.stringify(r.value) : ''}</td>
                 <td>{r.error ?? r.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <h2>Notifications</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Occurred at</th>
+              <th>Event</th>
+              <th>Channel</th>
+              <th>Status</th>
+              <th>Attempts</th>
+              <th>Last error</th>
+              <th>Sent at</th>
+            </tr>
+          </thead>
+          <tbody>
+            {notifications.map((n) => (
+              <tr>
+                <td>{n.occurredAt}</td>
+                <td>{n.eventId}</td>
+                <td>{n.channel}</td>
+                <td>{n.status === 'failed' ? <strong>FAILED</strong> : n.status}</td>
+                <td>{n.attempts}</td>
+                <td>{n.lastError}</td>
+                <td>{n.sentAt}</td>
               </tr>
             ))}
           </tbody>

@@ -60,3 +60,30 @@ export const markFailed = async (db: D1Database, eventId: string, channelId: str
     .bind(error, MAX_ATTEMPTS, eventId, channelId)
     .run()
 }
+
+export type MonitorNotification = {
+  eventId: string
+  occurredAt: string
+  channel: string
+  status: string
+  attempts: number
+  lastError: string | null
+  sentAt: string | null
+}
+
+export const listNotificationsByMonitor = async (
+  db: D1Database,
+  monitorId: string,
+  limit = 50,
+): Promise<MonitorNotification[]> => {
+  const { results } = await db
+    .prepare(
+      `SELECT n.event_id AS eventId, e.occurred_at AS occurredAt, COALESCE(c.display_name, n.channel_id) AS channel,
+       n.status, n.attempts, n.last_error AS lastError, n.sent_at AS sentAt
+       FROM notifications n JOIN events e ON e.id = n.event_id LEFT JOIN channels c ON c.id = n.channel_id
+       WHERE e.monitor_id = ? ORDER BY e.occurred_at DESC, n.channel_id LIMIT ?`,
+    )
+    .bind(monitorId, limit)
+    .all<MonitorNotification>()
+  return results
+}
