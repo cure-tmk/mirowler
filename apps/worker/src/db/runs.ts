@@ -87,7 +87,9 @@ export const listRunsByMonitor = async (db: D1Database, monitorId: string, limit
 
 export const getLastValid = async (db: D1Database, monitorId: string): Promise<Observation | null> => {
   const r = await db
-    .prepare('SELECT runs.* FROM runs JOIN monitors ON runs.run_id = monitors.last_valid_run_id WHERE monitors.id = ?')
+    .prepare(
+      'SELECT runs.* FROM runs JOIN monitors ON runs.run_id = monitors.last_valid_run_id AND runs.config_version = monitors.config_version WHERE monitors.id = ?',
+    )
     .bind(monitorId)
     .first<RunRow>()
   if (!r?.state) {

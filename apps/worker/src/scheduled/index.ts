@@ -57,7 +57,7 @@ const runMonitor = async (env: Bindings, monitor: Monitor, now: Date, manual = f
     await failRun(env.DB, runId, String(e), new Date().toISOString())
   } finally {
     const nextRunAt = manual ? monitor.nextRunAt : computeNextRunAt(monitor.schedule, now)
-    await finishRun(env.DB, monitor.id, nextRunAt, lastValidRunId)
+    await finishRun(env.DB, monitor.id, monitor.configVersion, nextRunAt, lastValidRunId)
   }
   return runId
 }

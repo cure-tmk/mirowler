@@ -1,3 +1,4 @@
+import { monitorConfigSchema } from '@mirowler/core'
 import { Hono } from 'hono'
 import { type Channel, insertChannel, listChannels } from '../../db/channels'
 import { getMonitor, listMonitors } from '../../db/monitors'
@@ -141,6 +142,19 @@ export const pages = new Hono<AppEnv>()
         <form method="post" action={`/monitors/${monitor.id}/run`}>
           <button type="submit">Run now</button>
         </form>
+        <h2>Edit</h2>
+        <form method="post" action={`/api/monitors/${monitor.id}/edit`}>
+          <label>
+            Config JSON (version {monitor.configVersion})
+            <br />
+            <textarea name="config" rows={16} cols={80} required>
+              {JSON.stringify(monitorConfigSchema.parse(monitor), null, 2)}
+            </textarea>
+          </label>
+          <br />
+          <button type="submit">Save</button>
+        </form>
+        <h2>Runs</h2>
         <table>
           <thead>
             <tr>

@@ -22,6 +22,11 @@ Everything except `/healthz` requires Basic auth against the Worker Secret `ADMI
 Cloudflare Access is not used because it cannot protect a `*.workers.dev` hostname and there is no custom zone yet.
 Once a custom domain is added, put an Access application in front of it and remove the `auth` middleware.
 
+## Monitor edit
+
+`PUT /api/monitors/:id` takes the same body as `POST /api/monitors` (JSON, or a form with a `config` JSON field). `POST /api/monitors/:id/edit` is the same handler for HTML forms, which cannot send `PUT`.
+An edit bumps `config_version`, clears the baseline and makes the monitor due now, so the next run only re-baselines. A baseline recorded under another config version is never compared against, and a run in flight during an edit does not overwrite the new schedule or baseline.
+
 ## Run locally
 
 ```sh
