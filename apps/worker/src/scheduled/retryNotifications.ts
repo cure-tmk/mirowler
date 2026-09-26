@@ -4,8 +4,6 @@ import { getChannel } from '../db/channels'
 import { claimNotification, listPending, markFailed, markSent } from '../db/notifications'
 import type { Bindings } from '../env'
 
-export { sendTestMessage } from '../adapters/notify'
-
 /** Sends one notification only if this call wins the claim; otherwise does nothing. */
 export const deliver = async (env: Bindings, event: MonitorEvent, channelId: string, now = new Date()) => {
   const claim = await claimNotification(env.DB, event.id, channelId, now)

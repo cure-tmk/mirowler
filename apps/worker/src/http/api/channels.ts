@@ -4,7 +4,7 @@ import { deleteChannel, insertChannel, listChannels, updateChannel } from '../..
 import { type AppEnv, readSecret } from '../../env'
 import { badRequest } from './badRequest'
 
-export const isValidChannelInput = (input: {
+const isValidChannelInput = (input: {
   displayName?: unknown
   secretName?: unknown
 }): input is { displayName: string; secretName: string } =>
