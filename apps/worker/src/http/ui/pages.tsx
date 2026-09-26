@@ -1,7 +1,7 @@
-import { type Monitor, monitorConfigSchema } from '@mirowler/core'
+import { monitorConfigSchema } from '@mirowler/core'
 import { Hono } from 'hono'
 import { type Channel, insertChannel, listChannels } from '../../db/channels'
-import { getMonitor, insertMonitor, listMonitors } from '../../db/monitors'
+import { getMonitor, insertMonitor, listMonitorHealth, type MonitorHealth } from '../../db/monitors'
 import { listHistoryByMonitor } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
@@ -77,7 +77,7 @@ const MonitorsPage = ({
   values,
   errors,
 }: {
-  monitors: Monitor[]
+  monitors: MonitorHealth[]
   channels: Channel[]
   values: FormValues
   errors?: FormErrors
@@ -90,6 +90,10 @@ const MonitorsPage = ({
           <th>URL</th>
           <th>Enabled</th>
           <th>Next run</th>
+          <th>Status</th>
+          <th>Consecutive unknown</th>
+          <th>Failure rate</th>
+          <th>Last run</th>
         </tr>
       </thead>
       <tbody>
@@ -100,7 +104,14 @@ const MonitorsPage = ({
             </td>
             <td>{m.source.url}</td>
             <td>{m.enabled ? 'yes' : 'no'}</td>
-            <td>{m.nextRunAt}</td>
+            <td>
+              {m.nextRunAt}
+              {m.delayed && ' (delayed)'}
+            </td>
+            <td>{(m.delayed || m.consecutiveUnknown >= 3) && <strong>ATTENTION</strong>}</td>
+            <td>{m.consecutiveUnknown}</td>
+            <td>{m.failureRate === null ? '' : `${Math.round(m.failureRate * 100)}%`}</td>
+            <td>{m.lastRun && `${m.lastRun.at} ${m.lastRun.state ?? ''}`}</td>
           </tr>
         ))}
       </tbody>
@@ -112,14 +123,14 @@ const MonitorsPage = ({
 
 export const pages = new Hono<AppEnv>()
   .get('/', async (c) => {
-    const [monitors, channels] = await Promise.all([listMonitors(c.env.DB), listChannels(c.env.DB)])
+    const [monitors, channels] = await Promise.all([listMonitorHealth(c.env.DB, new Date()), listChannels(c.env.DB)])
     return c.html(<MonitorsPage monitors={monitors} channels={channels} values={defaultFormValues} />)
   })
   .post('/monitors', async (c) => {
     const values = readForm(await c.req.parseBody({ all: true }))
     const { config, errors } = formToConfig(values)
     if (!config) {
-      const [monitors, channels] = await Promise.all([listMonitors(c.env.DB), listChannels(c.env.DB)])
+      const [monitors, channels] = await Promise.all([listMonitorHealth(c.env.DB, new Date()), listChannels(c.env.DB)])
       return c.html(<MonitorsPage monitors={monitors} channels={channels} values={values} errors={errors} />, 400)
     }
     const id = await insertMonitor(c.env.DB, config, new Date().toISOString())
