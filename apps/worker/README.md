@@ -2,11 +2,12 @@
 
 ## Responsibility
 
-A single Cloudflare Worker that serves the admin UI, the API and the cron run. It stores `@mirowler/core` results in D1 and notifies Slack.
+A single Cloudflare Worker that serves the API, the admin UI built by `@mirowler/web` and the cron run. It stores `@mirowler/core` results in D1 and notifies Slack.
 
 ## Directories
 
-- `src/http`: Hono API, admin UI (hono/jsx) and Basic auth
+- `src/http`: Hono API, the legacy server-rendered pages (hono/jsx) and Basic auth
+- `src/api.ts`: the API route types `@mirowler/web` imports, emitted to `dist/api` by `pnpm -F @mirowler/worker types:api`
 - `src/scheduled`: cron handler that claims due monitors, runs them, retries pending notifications and deletes history older than the `RETENTION_DAYS` var (default 30, in `wrangler.jsonc`)
 - `src/adapters`: core port implementations (HTTP fetch, HTMLRewriter extraction, Slack notification)
 - `src/db`: small functions wrapping D1 queries
@@ -17,6 +18,14 @@ A single Cloudflare Worker that serves the admin UI, the API and the cron run. I
 Delivery is at-least-once per (event, channel): each send is preceded by a conditional claim, so overlapping ticks and a re-run of the same run id do not post twice, and a claim left `sending` for 10 minutes is taken over.
 A failed send is retried after 1, 2, 4, 8, 16, 32 and 60 minutes, about two hours in total.
 After 8 attempts the notification becomes `failed` and is shown on the monitor page; the event id in the Slack text lets readers spot the rare duplicate after a timeout.
+
+## Static assets
+
+`wrangler.jsonc` serves `apps/web/dist` through Workers Static Assets with single-page-application fallback, so navigation to any path that is not a file returns the web app's `index.html`.
+Only `/api`, `/api/*` and `/healthz` always reach the Worker first (`run_worker_first`); without that, a browser navigation to `/api/...` would get `index.html`.
+Assets are public and are served without invoking the Worker; everything under `/api` stays behind Basic auth.
+The build must exist before `wrangler dev` or a deploy: `deploy:dry-run` and `deploy:remote` build it themselves, and the root `pnpm dev` builds it before starting the dev servers.
+The hono/jsx pages are still routed, but browser navigation to them now gets the web app instead; they are removed once the web app covers their actions.
 
 ## Not here
 

@@ -26,6 +26,7 @@ PACKAGE=""
 case "$ABS_PATH" in
 "$PROJECT_DIR"/packages/core/tsconfig.json) PACKAGE="core" ;;
 "$PROJECT_DIR"/apps/worker/tsconfig.json) PACKAGE="worker" ;;
+"$PROJECT_DIR"/apps/web/tsconfig.json) PACKAGE="web" ;;
 "$PROJECT_DIR"/packages/core/*)
 	case "$ABS_PATH" in
 	*.ts | *.tsx) PACKAGE="core" ;;
@@ -34,6 +35,11 @@ case "$ABS_PATH" in
 "$PROJECT_DIR"/apps/worker/*)
 	case "$ABS_PATH" in
 	*.ts | *.tsx) PACKAGE="worker" ;;
+	esac
+	;;
+"$PROJECT_DIR"/apps/web/*)
+	case "$ABS_PATH" in
+	*.ts | *.tsx) PACKAGE="web" ;;
 	esac
 	;;
 esac
@@ -48,8 +54,9 @@ if [[ -z "$PNPM" ]]; then
 fi
 
 STATE_DIR="$PROJECT_DIR/.claude/state"
-REQUEST_FILE="$STATE_DIR/typecheck-$PACKAGE.request"
-LOCK_DIR="$STATE_DIR/typecheck-$PACKAGE.lock"
+# One lock for every package: the turbo graphs overlap and write the same generated files
+REQUEST_FILE="$STATE_DIR/typecheck.request"
+LOCK_DIR="$STATE_DIR/typecheck.lock"
 LOCK_CREATED_FILE="$LOCK_DIR/created_at"
 LOCK_PID_FILE="$LOCK_DIR/pid"
 STALE_LOCK_GRACE_SECONDS=10
@@ -136,7 +143,7 @@ while true; do
 	RUN_MARKER="$(cat "$REQUEST_FILE" 2>/dev/null || printf '0')"
 
 	set +e
-	LAST_OUTPUT="$(cd "$PROJECT_DIR" && "$PNPM" -F "@mirowler/$PACKAGE" typecheck 2>&1)"
+	LAST_OUTPUT="$(cd "$PROJECT_DIR" && "$PNPM" exec turbo run typecheck --output-logs=errors-only 2>&1)"
 	LAST_STATUS=$?
 	set -e
 
@@ -150,5 +157,5 @@ if [[ $LAST_STATUS -eq 0 ]]; then
 	exit 0
 fi
 
-MESSAGE="$(printf 'Typecheck failed after recent edits (@mirowler/%s)\n\n%s' "$PACKAGE" "$(trim_output "$LAST_OUTPUT")")"
+MESSAGE="$(printf 'Typecheck failed after recent edits\n\n%s' "$(trim_output "$LAST_OUTPUT")")"
 emit_system_message "$MESSAGE"

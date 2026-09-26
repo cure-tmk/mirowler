@@ -9,3 +9,4 @@ dist
 **/.DS_Store
 apps/worker/worker-configuration.d.ts
 .claude/worktrees/
+apps/web/styled-system

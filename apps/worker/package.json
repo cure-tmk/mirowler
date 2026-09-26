@@ -3,13 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./api": {
+      "types": "./dist/api/api.d.ts"
+    }
+  },
   "scripts": {
     "dev": "wrangler dev --test-scheduled",
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
+    "types:api": "wrangler types && tsc -p tsconfig.api.json",
     "test": "vitest run",
-    "deploy:remote": "wrangler deploy",
-    "deploy:dry-run": "wrangler deploy --dry-run",
+    "deploy:remote": "pnpm -F @mirowler/web build && wrangler deploy",
+    "deploy:dry-run": "pnpm -F @mirowler/web build && wrangler deploy --dry-run",
     "migrate:local": "wrangler d1 migrations apply mirowler --local",
     "migrate:remote": "wrangler d1 migrations apply mirowler --remote"
   },
@@ -20,6 +26,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.22.0",
     "vitest": "4.1.11",
-    "wrangler": "4.141.0"
+    "wrangler": "4.141.0",
+    "zod": "4.6.5"
   }
 }
