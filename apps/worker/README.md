@@ -28,6 +28,14 @@ Everything except `/healthz` requires Basic auth against the Worker Secret `ADMI
 Cloudflare Access is not used because it cannot protect a `*.workers.dev` hostname and there is no custom zone yet.
 Once a custom domain is added, put an Access application in front of it and remove the `auth` middleware.
 
+## Admin API
+
+- Every 400 has the body `{ error, issues? }`; each issue is `{ path, message }` keyed by the dotted field path (`schedule.minutes`, `source.url`, `channelIds`, ...).
+- `GET /api/monitors` and `GET /api/monitors/:id` return each monitor with its health. `attention` is decided here (delayed, or at least 3 consecutive unknown runs) so clients do not duplicate the threshold. The detail adds `baseline`, the last valid observation under the current config version, or null.
+- `GET /api/monitors/:id/runs` returns `{ runs, nextCursor }`, newest first, each run with its events and their per-channel delivery. Pass `nextCursor` back as `cursor` for the next page; `limit` defaults to 50 and is capped at 100. Runs that share a scheduled time are still returned exactly once.
+- `DELETE /api/monitors/:id` permanently deletes the monitor with its runs, events and notifications. While a run holds a live claim it answers 409 and deletes nothing. Pausing is `POST /api/monitors/:id/disable`.
+- `GET /api/channels` adds `secretConfigured`, whether the Worker Secret named by the channel is set; secret values are never returned. `PUT /api/channels/:id` edits the display name and secret name with the create validation. `DELETE /api/channels/:id` answers 409 with the monitors whose config references the channel.
+
 ## Monitor create form
 
 The top page posts structured fields to the HTML route `POST /monitors`, which builds a config from them, validates it with the shared `monitorConfigSchema` and re-renders the form with each issue next to its field (400) or redirects to the new monitor.
@@ -46,7 +54,7 @@ Target URLs, selectors and condition values stay outside the repository; only th
 2. Pick a selector built from stable classes or ids of the page layout, not from product ids, so it survives across products and variations.
 3. When the state lives in an attribute (such as a button's `value`), use a `css_attr` extractor with parse `text` rather than `css_text`.
 4. Evaluate it with a `rule` on `text` (`contains` the positive marker) and trigger `on_enter`, then register it with `POST /api/monitors` or the create form.
-5. Trigger `POST /api/monitors/:id/run` and check `GET /api/monitors/:id/runs`: while the item is unavailable the run's `state` is `not_matched`. `unknown` means nothing was extracted (the selector is wrong, the page changed, or a `css_text` selector matched a void element such as `<input>`) or the fetch failed; the run's reason tells which.
+5. Trigger `POST /api/monitors/:id/run` and check `GET /api/monitors/:id/runs`: while the item is unavailable the latest run's `state` is `not_matched`. `unknown` means nothing was extracted (the selector is wrong, the page changed, or a `css_text` selector matched a void element such as `<input>`) or the fetch failed; the run's reason tells which.
 
 The reference shape and the selectors it relies on are in the [fixtures README](test/fixtures/README.md).
 
