@@ -45,6 +45,17 @@ export const setMonitorEnabled = async (db: D1Database, id: string, enabled: boo
   return meta.changes === 1
 }
 
+/** Replaces the config, bumps its version and resets the baseline so the next tick re-baselines under the new config. */
+export const updateMonitorConfig = async (db: D1Database, id: string, config: MonitorConfig, now: string) => {
+  const { meta } = await db
+    .prepare(
+      'UPDATE monitors SET name = ?, config_json = ?, config_version = config_version + 1, last_valid_run_id = NULL, next_run_at = ?, updated_at = ? WHERE id = ?',
+    )
+    .bind(config.name, JSON.stringify(config), now, now, id)
+    .run()
+  return meta.changes === 1
+}
+
 /** Claims due monitors with one conditional UPDATE per row. A `running_since` older than `staleBefore` counts as abandoned and is taken over. */
 export const claimDue = async (db: D1Database, now: string, staleBefore: string, limit: number): Promise<Monitor[]> => {
   const { results } = await db
@@ -74,11 +85,21 @@ export const claimById = async (db: D1Database, id: string, now: string, staleBe
   return row ? toMonitor(row) : null
 }
 
-export const finishRun = async (db: D1Database, id: string, nextRunAt: string, lastValidRunId?: string) => {
+/** Leaves the schedule and baseline alone when the config was edited during the run. */
+export const finishRun = async (
+  db: D1Database,
+  id: string,
+  configVersion: number,
+  nextRunAt: string,
+  lastValidRunId?: string,
+) => {
   await db
     .prepare(
-      'UPDATE monitors SET running_since = NULL, next_run_at = ?, last_valid_run_id = COALESCE(?, last_valid_run_id) WHERE id = ?',
+      `UPDATE monitors SET running_since = NULL,
+        next_run_at = CASE WHEN config_version = ?1 THEN ?2 ELSE next_run_at END,
+        last_valid_run_id = CASE WHEN config_version = ?1 THEN COALESCE(?3, last_valid_run_id) ELSE last_valid_run_id END
+      WHERE id = ?4`,
     )
-    .bind(nextRunAt, lastValidRunId ?? null, id)
+    .bind(configVersion, nextRunAt, lastValidRunId ?? null, id)
     .run()
 }
