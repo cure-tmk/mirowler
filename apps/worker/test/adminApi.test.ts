@@ -142,6 +142,13 @@ describe('monitor delete', () => {
 })
 
 describe('channels', () => {
+  it('creates a channel only with a SLACK_ secret name', async () => {
+    const create = (secretName: string) => sendJson('POST', '/channels', { displayName: 'prefix', secretName })
+
+    expect((await create('WEBHOOK_MAIN')).status).toBe(400)
+    expect((await create('SLACK_WEBHOOK_MAIN')).status).toBe(201)
+  })
+
   it('reports whether the secret is set without returning its value', async () => {
     const set = await insertChannel(env.DB, { displayName: 'set', secretName: 'SLACK_ADMIN_SET' }, T0)
     const unset = await insertChannel(env.DB, { displayName: 'unset', secretName: 'SLACK_ADMIN_UNSET' }, T0)
@@ -190,8 +197,32 @@ describe('channels', () => {
   })
 })
 
-describe('400 responses', () => {
+describe('monitor create', () => {
   const create = (config: MonitorConfig) => sendJson('POST', '/monitors', config)
+
+  const validConfig = async () => ({
+    ...baseConfig,
+    channelIds: [await insertChannel(env.DB, { displayName: 'create', secretName: 'SLACK_CREATE' }, T0)],
+  })
+
+  it('stores a valid config', async () => {
+    const res = await create(await validConfig())
+
+    expect(res.status).toBe(201)
+    const { id } = (await res.json()) as { id: string }
+    expect(await (await api(`/monitors/${id}`)).json()).toMatchObject({ id, name: baseConfig.name })
+  })
+
+  it('rejects a form-encoded body and inserts nothing', async () => {
+    const res = await api('/monitors', {
+      method: 'POST',
+      body: new URLSearchParams({ config: JSON.stringify(await validConfig()) }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: expect.any(String) })
+    expect(await count('SELECT COUNT(*) AS n FROM monitors')).toBe(0)
+  })
 
   it.each([
     ['schedule.minutes', { ...baseConfig, schedule: { type: 'interval', minutes: 0 } }],

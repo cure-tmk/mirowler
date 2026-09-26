@@ -11,19 +11,19 @@ beforeAll(async () => {
 })
 
 describe('admin auth', () => {
-  it.each(['/', '/api/monitors'])('rejects %s without credentials', async (path) => {
+  it.each(['/api/monitors', '/api/channels'])('rejects %s without credentials', async (path) => {
     const res = await app.request(path, {}, withSecret)
     expect(res.status).toBe(401)
     expect(res.headers.get('WWW-Authenticate')).toMatch(/^Basic realm=/)
   })
 
   it('rejects wrong credentials', async () => {
-    const res = await app.request('/', basic('admin:wrong'), withSecret)
+    const res = await app.request('/api/monitors', basic('admin:wrong'), withSecret)
     expect(res.status).toBe(401)
   })
 
-  it('serves / with correct credentials', async () => {
-    const res = await app.request('/', basic('admin:s3cret'), withSecret)
+  it('serves the API with correct credentials', async () => {
+    const res = await app.request('/api/monitors', basic('admin:s3cret'), withSecret)
     expect(res.status).toBe(200)
   })
 
@@ -33,17 +33,21 @@ describe('admin auth', () => {
   })
 
   it('returns 503 when the secret is not configured', async () => {
-    const res = await app.request('/', basic('admin:s3cret'), { ...env, ADMIN_BASIC_AUTH: '' })
+    const res = await app.request('/api/monitors', basic('admin:s3cret'), { ...env, ADMIN_BASIC_AUTH: '' })
     expect(res.status).toBe(503)
   })
 
   it('rejects a form post from a foreign origin', async () => {
     const res = await app.request(
-      '/channels',
+      '/api/channels',
       {
         method: 'POST',
-        headers: { Authorization: `Basic ${btoa('admin:s3cret')}`, Origin: 'https://evil.example' },
-        body: new URLSearchParams({ displayName: 'x', secretName: 'X' }),
+        headers: {
+          Authorization: `Basic ${btoa('admin:s3cret')}`,
+          Origin: 'https://evil.example',
+          'content-type': 'text/plain',
+        },
+        body: JSON.stringify({ displayName: 'x', secretName: 'SLACK_X' }),
       },
       withSecret,
     )

@@ -24,6 +24,15 @@ const config: MonitorConfig = {
 
 const testEnv = { ...env, ADMIN_BASIC_AUTH: 'admin:s3cret', SLACK_TEST: 'https://hooks.example.com/test' }
 
+const history = async (monitorId: string) => {
+  const res = await app.request(
+    `/api/monitors/${monitorId}/runs`,
+    { headers: { Authorization: `Basic ${btoa('admin:s3cret')}` } },
+    testEnv,
+  )
+  return ((await res.json()) as { runs: unknown[] }).runs
+}
+
 const seedEvent = async () => {
   const monitorId = await insertMonitor(env.DB, config, T0)
   const runId = `${monitorId}:${T0}`
@@ -46,7 +55,7 @@ beforeEach(() => {
 })
 
 describe('notification failures', () => {
-  it('gives up after the attempt cap and shows the failure on the monitor page', async () => {
+  it('gives up after the attempt cap and reports the failure in the run history', async () => {
     const { monitorId, eventId, channelId } = await seedEvent()
     const fetch = vi
       .spyOn(globalThis, 'fetch')
@@ -64,20 +73,14 @@ describe('notification failures', () => {
       .first()
     expect(row).toEqual({ status: 'failed', attempts: MAX_ATTEMPTS, last_error: '404 no_service' })
 
-    const res = await app.request(
-      `/monitors/${monitorId}`,
-      { headers: { Authorization: `Basic ${btoa('admin:s3cret')}` } },
-      testEnv,
-    )
-    const html = await res.text()
-    expect(html).toContain('<strong>FAILED</strong>')
-    expect(html).toContain('404 no_service')
-    expect(html).toContain('alerts')
+    expect(await history(monitorId)).toMatchObject([
+      { events: [{ notifications: [{ channel: 'alerts', status: 'failed', lastError: '404 no_service' }] }] },
+    ])
   })
 })
 
 describe('monitor history', () => {
-  it('shows each run with its reason, events and per-channel notification status', async () => {
+  it('returns each run with its reason, events and per-channel notification status', async () => {
     const T1 = '2026-01-01T01:00:00.000Z'
     const monitorId = await insertMonitor(env.DB, config, T0)
     const unknownRun = `${monitorId}:${T0}`
@@ -106,21 +109,21 @@ describe('monitor history', () => {
       ).bind(`${eventRun}:entered`, failed, MAX_ATTEMPTS),
     ])
 
-    const res = await app.request(
-      `/monitors/${monitorId}`,
-      { headers: { Authorization: `Basic ${btoa('admin:s3cret')}` } },
-      testEnv,
-    )
-    const blocks = (await res.text()).split('<tbody>').slice(1)
-
-    expect(blocks).toHaveLength(2)
-    const [eventBlock, unknownBlock] = blocks as [string, string]
-    expect(eventBlock).toContain('price dropped')
-    expect(eventBlock).toContain('entered')
-    expect(eventBlock).toMatch(/ok-channel<\/td><td>sent</)
-    expect(eventBlock).toMatch(/broken-channel<\/td><td><strong>FAILED<\/strong>/)
-    expect(unknownBlock).toContain('selector missed')
-    expect(unknownBlock).not.toContain('entered')
+    expect(await history(monitorId)).toMatchObject([
+      {
+        reason: 'price dropped',
+        events: [
+          {
+            kind: 'entered',
+            notifications: expect.arrayContaining([
+              expect.objectContaining({ channel: 'ok-channel', status: 'sent' }),
+              expect.objectContaining({ channel: 'broken-channel', status: 'failed', lastError: '500 oops' }),
+            ]),
+          },
+        ],
+      },
+      { reason: 'selector missed', events: [] },
+    ])
   })
 })
 

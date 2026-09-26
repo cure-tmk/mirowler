@@ -43,7 +43,7 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
    pnpm dev
    ```
 
-6. Register a channel, then a monitor using the returned channel id
+6. Register a channel, then a monitor, from the web UI on `http://localhost:5173` or through the API using the returned channel id
 
    ```sh
    curl -u admin:localpass -H 'content-type: application/json' \

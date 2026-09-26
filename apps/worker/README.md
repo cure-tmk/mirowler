@@ -6,7 +6,7 @@ A single Cloudflare Worker that serves the API, the admin UI built by `@mirowler
 
 ## Directories
 
-- `src/http`: Hono API, the legacy server-rendered pages (hono/jsx) and Basic auth
+- `src/http`: Hono API and Basic auth
 - `src/api.ts`: the API route types `@mirowler/web` imports, emitted to `dist/api` by `pnpm -F @mirowler/worker types:api`
 - `src/scheduled`: cron handler that claims due monitors, runs them, retries pending notifications and deletes history older than the `RETENTION_DAYS` var (default 30, in `wrangler.jsonc`)
 - `src/adapters`: core port implementations (HTTP fetch, HTMLRewriter extraction, Slack notification)
@@ -17,7 +17,7 @@ A single Cloudflare Worker that serves the API, the admin UI built by `@mirowler
 
 Delivery is at-least-once per (event, channel): each send is preceded by a conditional claim, so overlapping ticks and a re-run of the same run id do not post twice, and a claim left `sending` for 10 minutes is taken over.
 A failed send is retried after 1, 2, 4, 8, 16, 32 and 60 minutes, about two hours in total.
-After 8 attempts the notification becomes `failed` and is shown on the monitor page; the event id in the Slack text lets readers spot the rare duplicate after a timeout.
+After 8 attempts the notification becomes `failed` and is shown in the monitor's history; the event id in the Slack text lets readers spot the rare duplicate after a timeout.
 
 ## Static assets
 
@@ -25,7 +25,6 @@ After 8 attempts the notification becomes `failed` and is shown on the monitor p
 Only `/api`, `/api/*`, `/healthz` and `/__scheduled` always reach the Worker first (`run_worker_first`); without that, a browser navigation to `/api/...` would get `index.html`, and `wrangler dev --test-scheduled` could not be triggered locally. In production `/__scheduled` only reaches Basic auth.
 Assets are public and are served without invoking the Worker; everything under `/api` stays behind Basic auth.
 The build must exist before `wrangler dev` or a deploy: `deploy:dry-run` and `deploy:remote` build it themselves, and the root `pnpm dev` builds it before starting the dev servers.
-The hono/jsx pages are still routed, but browser navigation to them now gets the web app instead; they are removed once the web app covers their actions.
 
 ## Not here
 
@@ -39,6 +38,7 @@ Once a custom domain is added, put an Access application in front of it and remo
 
 ## Admin API
 
+- Request bodies are JSON. The monitors API answers any other content type, such as a form, with a 400 that carries no `issues`.
 - Every 400 has the body `{ error, issues? }`; each issue is `{ path, message }` keyed by the dotted field path (`schedule.minutes`, `source.url`, `channelIds`, ...).
 - `GET /api/monitors` and `GET /api/monitors/:id` return each monitor with its health. `attention` is decided here (delayed, or at least 3 consecutive unknown runs) so clients do not duplicate the threshold. The detail adds `baseline`, the last valid observation under the current config version, or null.
 - `GET /api/monitors/:id/runs` returns `{ runs, nextCursor }`, newest first, each run with its events and their per-channel delivery. Pass `nextCursor` back as `cursor` for the next page; `limit` defaults to 50 and is capped at 100. Runs that share a scheduled time are still returned exactly once.
@@ -46,14 +46,9 @@ Once a custom domain is added, put an Access application in front of it and remo
 - `POST /api/preview` takes `{ source, extractor, evaluator? }` with the create validation and the same URL checks, runs one fetch, extract and evaluate as a scheduled run would, writes nothing and returns `{ value, state?, reason?, httpStatus? }` (`httpStatus` only for a non-2xx fetch). A `change` evaluator needs a baseline, so its value comes back without a state unless the value itself is unusable (`unknown`); a failed fetch or a selector that matches nothing is `unknown` with the reason.
 - `GET /api/channels` adds `secretConfigured`, whether the Worker Secret named by the channel is set; secret values are never returned. `PUT /api/channels/:id` edits the display name and secret name with the create validation. `DELETE /api/channels/:id` answers 409 with the monitors whose config references the channel.
 
-## Monitor create form
-
-The top page posts structured fields to the HTML route `POST /monitors`, which builds a config from them, validates it with the shared `monitorConfigSchema` and re-renders the form with each issue next to its field (400) or redirects to the new monitor.
-`/api/monitors` serves JSON for API clients; the HTML form routes are `/monitors` (create) and `/monitors/:id/edit` (edit). Every field is always rendered without JavaScript; fields that do not apply to the chosen schedule, extractor or evaluator type are ignored.
-
 ## Monitor edit
 
-`PUT /api/monitors/:id` takes the same body as `POST /api/monitors` (JSON, or a form with a `config` JSON field). `POST /api/monitors/:id/edit` is the same handler for HTML forms, which cannot send `PUT`.
+`PUT /api/monitors/:id` takes the same body as `POST /api/monitors`.
 An edit bumps `config_version`, clears the baseline and makes the monitor due now, so the next run only re-baselines. A baseline recorded under another config version is never compared against, and a run in flight during an edit does not overwrite the new schedule or baseline, although it may still emit an event computed under the old config.
 
 ## Registering a stock monitor
@@ -63,8 +58,8 @@ Target URLs, selectors and condition values stay outside the repository; only th
 1. Save the live product page and find the element or attribute that only appears when the item can be bought (for example the label of an enabled cart button). The condition must match that positive marker, never the absence of an out-of-stock label, which is also absent after a layout change or on a block page.
 2. Pick a selector built from stable classes or ids of the page layout, not from product ids, so it survives across products and variations.
 3. When the state lives in an attribute (such as a button's `value`), use a `css_attr` extractor with parse `text` rather than `css_text`.
-4. Evaluate it with a `rule` on `text` (`contains` the positive marker) and trigger `on_enter`, then register it with `POST /api/monitors` or the create form.
-5. Trigger `POST /api/monitors/:id/run` and check `GET /api/monitors/:id/runs`: while the item is unavailable the latest run's `state` is `not_matched`. `unknown` means nothing was extracted (the selector is wrong, the page changed, or a `css_text` selector matched a void element such as `<input>`) or the fetch failed; the run's reason tells which.
+4. Evaluate it with a `rule` on `text` (`contains` the positive marker) and trigger `on_enter`, then register it from the web UI's monitor form (its preview shows the extracted value and state before saving) or with `POST /api/monitors`.
+5. Use "Run now" on the monitor page (or `POST /api/monitors/:id/run`) and check the history (`GET /api/monitors/:id/runs`): while the item is unavailable the latest run's `state` is `not_matched`. `unknown` means nothing was extracted (the selector is wrong, the page changed, or a `css_text` selector matched a void element such as `<input>`) or the fetch failed; the run's reason tells which.
 
 The reference shape and the selectors it relies on are in the [fixtures README](test/fixtures/README.md).
 

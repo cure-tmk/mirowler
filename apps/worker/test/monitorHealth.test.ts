@@ -2,7 +2,7 @@ import { applyD1Migrations } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import type { MatchState, MonitorConfig } from '@mirowler/core'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { ATTENTION_THRESHOLD, insertMonitor } from '../src/db/monitors'
+import { ATTENTION_THRESHOLD, insertMonitor, type MonitorHealth } from '../src/db/monitors'
 import { app } from '../src/http/app'
 
 const testEnv = { ...env, ADMIN_BASIC_AUTH: 'admin:s3cret' }
@@ -31,9 +31,11 @@ const seedRuns = async (monitorId: string, states: MatchState[]) => {
   }
 }
 
-const rowFor = (html: string, name: string) => html.match(new RegExp(`<tr><td><a[^>]*>${name}</a>.*?</tr>`))?.[0]
-
-const listPage = async () => (await app.request('/', { headers: { Authorization: authorization } }, testEnv)).text()
+const health = async (name: string) => {
+  const res = await app.request('/api/monitors', { headers: { Authorization: authorization } }, testEnv)
+  const monitors = (await res.json()) as MonitorHealth[]
+  return monitors.find((m) => m.name === name)
+}
 
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
@@ -44,27 +46,24 @@ beforeEach(async () => {
   await env.DB.prepare('DELETE FROM monitors').run()
 })
 
-describe('monitor health on the list page', () => {
+describe('monitor health in the monitor list', () => {
   it('flags only the monitor with consecutive unknown runs at the threshold', async () => {
     const healthy = await insertMonitor(env.DB, config('healthy'), minutesAgo(1))
     const flaky = await insertMonitor(env.DB, config('flaky'), minutesAgo(1))
     await seedRuns(healthy, ['matched', 'unknown', 'not_matched'])
     await seedRuns(flaky, [...Array<MatchState>(ATTENTION_THRESHOLD).fill('unknown'), 'matched'])
 
-    const html = await listPage()
-
-    expect(rowFor(html, 'healthy')).not.toContain('ATTENTION')
-    expect(rowFor(html, 'flaky')).toContain('<strong>ATTENTION</strong>')
-    const rate = Math.round((ATTENTION_THRESHOLD / (ATTENTION_THRESHOLD + 1)) * 100)
-    expect(rowFor(html, 'flaky')).toContain(`<td>${ATTENTION_THRESHOLD}</td><td>${rate}%</td>`)
+    expect(await health('healthy')).toMatchObject({ attention: false })
+    expect(await health('flaky')).toMatchObject({
+      attention: true,
+      consecutiveUnknown: ATTENTION_THRESHOLD,
+      failureRate: ATTENTION_THRESHOLD / (ATTENTION_THRESHOLD + 1),
+    })
   })
 
   it('marks a monitor whose next run is far in the past as delayed', async () => {
     await insertMonitor(env.DB, config('stuck'), minutesAgo(3 * 60))
 
-    const row = rowFor(await listPage(), 'stuck')
-
-    expect(row).toContain('delayed')
-    expect(row).toContain('ATTENTION')
+    expect(await health('stuck')).toMatchObject({ delayed: true, attention: true })
   })
 })

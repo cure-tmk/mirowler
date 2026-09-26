@@ -120,28 +120,6 @@ describe('monitor edit', () => {
     expect(await monitorRow(id)).toEqual(before)
   })
 
-  it('re-renders the detail page with the posted config and the issues', async () => {
-    const id = await insertMonitor(env.DB, config, T0)
-    const before = await monitorRow(id)
-    const posted = JSON.stringify({ ...config, name: 'kept <edit>', schedule: { type: 'interval', minutes: 0 } })
-
-    const res = await app.request(
-      `/monitors/${id}/edit`,
-      {
-        method: 'POST',
-        headers: { Authorization: authorization, Origin: 'http://localhost' },
-        body: new URLSearchParams({ config: posted }),
-      },
-      withSecret,
-    )
-    const html = await res.text()
-
-    expect(res.status).toBe(400)
-    expect(html).toContain('kept &lt;edit&gt;')
-    expect(html).toMatch(/<ul role="alert"><li>schedule\.minutes: /)
-    expect(await monitorRow(id)).toEqual(before)
-  })
-
   it('resets the failure count', async () => {
     const id = await insertMonitor(env.DB, config, T0)
     await env.DB.prepare('UPDATE monitors SET failure_count = 3 WHERE id = ?').bind(id).run()
