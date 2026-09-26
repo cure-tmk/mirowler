@@ -72,3 +72,5 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
 | `pnpm deploy` | Deploy all workspaces (turbo) |
 | `pnpm -F @mirowler/core typecheck` / `test` | core only |
 | `pnpm -F @mirowler/worker typecheck` / `test` / `dev` / `deploy` / `migrate:local` | worker only |
+
+CI runs `pnpm ai:verify` and a worker deploy dry run (`pnpm -F @mirowler/worker deploy:dry-run`) on every pull request and on pushes to `main`.
