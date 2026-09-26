@@ -9,11 +9,14 @@ export const Shell = () => (
       <Container>
         <HStack gap="6">
           <strong>mirowler</strong>
-          <nav>
+          <HStack as="nav" gap="4">
             <Link asChild>
               <RouterLink to="/">Monitors</RouterLink>
             </Link>
-          </nav>
+            <Link asChild>
+              <RouterLink to="/channels">Channels</RouterLink>
+            </Link>
+          </HStack>
         </HStack>
       </Container>
     </header>

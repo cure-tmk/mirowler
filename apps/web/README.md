@@ -10,6 +10,14 @@ The admin UI: a React single-page app built with Vite and served by the Worker a
 - Park UI on Panda CSS: components and recipes are copied into `src/components/ui` and `src/theme` with `npx @park-ui/cli add <component>` (configured by `components.json`); Panda generates `styled-system/`, which is not committed
 - Hono RPC client (`hc`) typed by the Worker's API type
 
+## Screens
+
+- `/`: monitors with health and attention
+- `/monitors/:id`: summary, baseline, paged history with events and per-channel delivery, and the enable/disable, run now and delete actions. After "Run now" the history is polled until the returned run has finished
+- `/channels`: channels with secret status; create, edit, delete and send test
+
+A non-2xx response rejects with an `Error` whose message is the body's `error`; `httpStatus` and `errorBody` in `src/api.ts` read the status and body, so a screen can turn a 409 into a specific message.
+
 ## API types
 
 The Worker emits a declaration of its route types (`pnpm -F @mirowler/worker types:api`, into `apps/worker/dist/api`) and this package imports it as `@mirowler/worker/api`.
