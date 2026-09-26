@@ -45,10 +45,11 @@ export const insertRun = async (
     .run()
 }
 
+/** Returns false when the run is no longer `running`, e.g. it was taken over. */
 export const completeRun = async (db: D1Database, observation: Observation, finishedAt: string) => {
-  await db
+  const { meta } = await db
     .prepare(
-      `UPDATE runs SET finished_at = ?, status = 'done', value_json = ?, state = ?, reason = ?, error = NULL WHERE run_id = ?`,
+      `UPDATE runs SET finished_at = ?, status = 'done', value_json = ?, state = ?, reason = ?, error = NULL WHERE run_id = ? AND status = 'running'`,
     )
     .bind(
       finishedAt,
@@ -58,6 +59,7 @@ export const completeRun = async (db: D1Database, observation: Observation, fini
       observation.runId,
     )
     .run()
+  return meta.changes === 1
 }
 
 export const failRun = async (db: D1Database, runId: string, error: string, finishedAt: string) => {
@@ -67,6 +69,31 @@ export const failRun = async (db: D1Database, runId: string, error: string, fini
     )
     .bind(finishedAt, error, runId)
     .run()
+}
+
+/**
+ * Inserts the run for a claim only while the monitor is still held since `claimedAt`, first marking the monitor's other `running` rows as taken over.
+ * Returns false when the claim has been lost.
+ */
+export const beginRun = async (
+  db: D1Database,
+  run: { runId: string; monitorId: string; configVersion: number; scheduledAt: string; startedAt: string },
+  claimedAt: string,
+) => {
+  const held = 'EXISTS (SELECT 1 FROM monitors WHERE id = ?2 AND running_since = ?3)'
+  const [, inserted] = await db.batch([
+    db
+      .prepare(
+        `UPDATE runs SET status = 'error', state = 'unknown', error = 'taken over', finished_at = ?1 WHERE monitor_id = ?2 AND status = 'running' AND ${held}`,
+      )
+      .bind(run.startedAt, run.monitorId, claimedAt),
+    db
+      .prepare(
+        `INSERT INTO runs (run_id, monitor_id, config_version, scheduled_at, started_at, status) SELECT ?4, ?2, ?5, ?6, ?1, 'running' WHERE ${held}`,
+      )
+      .bind(run.startedAt, run.monitorId, claimedAt, run.runId, run.configVersion, run.scheduledAt),
+  ])
+  return inserted?.meta.changes === 1
 }
 
 export const listRunsByMonitor = async (db: D1Database, monitorId: string, limit = 50): Promise<Run[]> => {

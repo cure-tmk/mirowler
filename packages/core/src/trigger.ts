@@ -22,6 +22,7 @@ function sameValue(a: ObservedValue | null, b: ObservedValue | null): boolean {
 /**
  * Returns null for the baseline (first valid observation) and for any transition involving `unknown`.
  * For `change` evaluators every `matched` observation is an event and `trigger` is ignored.
+ * The event id is keyed on the baseline run, so re-observing the same transition from the same baseline yields the same id.
  */
 export function decideEvent({
   monitorId,
@@ -56,7 +57,7 @@ export function decideEvent({
     return null
   }
   return {
-    id: `${runId}:${kind}`,
+    id: `${previousValid.runId}:${kind}`,
     runId,
     monitorId,
     kind,

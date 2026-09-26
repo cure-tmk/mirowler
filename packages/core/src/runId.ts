@@ -1,1 +1,1 @@
-export const makeRunId = (monitorId: string, scheduledAt: string): string => `${monitorId}:${scheduledAt}`
+export const makeRunId = (monitorId: string, claimedAt: string): string => `${monitorId}:${claimedAt}`

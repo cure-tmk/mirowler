@@ -32,7 +32,7 @@ describe('decideEvent', () => {
   it('on_enter fires only on not_matched -> matched', () => {
     const e = decide(obs('not_matched'), obs('matched'))
     expect(e?.kind).toBe('entered')
-    expect(e?.id).toBe('run1:entered')
+    expect(e?.id).toBe('r:entered')
     expect(e?.summary).toBe('Shop: entered {"jpy":1}')
     expect(decide(obs('matched'), obs('matched'))).toBeNull()
     expect(decide(obs('matched'), obs('not_matched'))).toBeNull()
@@ -64,7 +64,7 @@ describe('decideEvent', () => {
       const p900 = obs('matched', { jpy: 900 })
       const p800 = obs('matched', { jpy: 800 })
       expect(change(p1000, p900)?.summary).toBe('Shop: value_changed {"jpy":1000} -> {"jpy":900}')
-      expect(change(p900, p800)).toMatchObject({ kind: 'value_changed', id: 'run1:value_changed' })
+      expect(change(p900, p800)).toMatchObject({ kind: 'value_changed', id: 'r:value_changed' })
     })
 
     it('fires on the first change regardless of trigger type', () => {

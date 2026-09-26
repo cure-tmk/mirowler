@@ -146,59 +146,68 @@ export const updateMonitorConfig = async (db: D1Database, id: string, config: Mo
   return meta.changes === 1
 }
 
-/**
- * Claims due monitors with one conditional UPDATE per row. A `running_since` older than `staleBefore` counts as abandoned and is taken over.
- * A row with an invalid config is deferred by a day so it does not keep taking a slot of `limit`.
- */
-export const claimDue = async (db: D1Database, now: string, staleBefore: string, limit: number): Promise<Monitor[]> => {
-  const { results } = await db
-    .prepare('SELECT * FROM monitors WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at LIMIT ?')
-    .bind(now, limit)
-    .all<MonitorRow>()
-  const claim = db.prepare(
-    'UPDATE monitors SET running_since = ?1 WHERE id = ?2 AND next_run_at <= ?1 AND (running_since IS NULL OR running_since < ?3)',
-  )
-  const defer = db.prepare('UPDATE monitors SET next_run_at = ? WHERE id = ?')
-  const claimed: Monitor[] = []
-  for (const row of results) {
+export type ClaimedMonitor = Monitor & { claimedAt: string }
+
+const CLAIMABLE = '(running_since IS NULL OR running_since < ?2)'
+
+/** Claimed rows with an invalid config are released with `next_run_at` deferred by a day so they do not keep taking a claim slot. */
+const toClaimed = async (db: D1Database, rows: MonitorRow[], now: string): Promise<ClaimedMonitor[]> => {
+  const claimed: ClaimedMonitor[] = []
+  const invalid: MonitorRow[] = []
+  for (const row of rows) {
     const monitor = toMonitor(row)
-    if (!monitor) {
-      await defer.bind(new Date(Date.parse(now) + DAY_MS).toISOString(), row.id).run()
-      continue
+    if (monitor) {
+      claimed.push({ ...monitor, claimedAt: row.running_since! })
+    } else {
+      invalid.push(row)
     }
-    const { meta } = await claim.bind(now, row.id, staleBefore).run()
-    if (meta.changes === 1) {
-      claimed.push(monitor)
-    }
+  }
+  if (invalid.length > 0) {
+    const release = db.prepare(
+      'UPDATE monitors SET running_since = NULL, next_run_at = ? WHERE id = ? AND running_since = ?',
+    )
+    const deferTo = new Date(Date.parse(now) + DAY_MS).toISOString()
+    await db.batch(invalid.map((row) => release.bind(deferTo, row.id, row.running_since)))
   }
   return claimed
 }
 
-export const claimById = async (db: D1Database, id: string, now: string, staleBefore: string) => {
-  const row = await db
+/** Claims up to `limit` due monitors in one statement. A `running_since` older than `staleBefore` counts as abandoned and is taken over; live claims are not counted against `limit`. */
+export const claimDue = async (db: D1Database, now: string, staleBefore: string, limit: number) => {
+  const { results } = await db
     .prepare(
-      'UPDATE monitors SET running_since = ?1 WHERE id = ?2 AND (running_since IS NULL OR running_since < ?3) RETURNING *',
+      `UPDATE monitors SET running_since = ?1 WHERE id IN (
+        SELECT id FROM monitors WHERE enabled = 1 AND next_run_at <= ?1 AND ${CLAIMABLE} ORDER BY next_run_at LIMIT ?3
+      ) RETURNING *`,
     )
-    .bind(now, id, staleBefore)
-    .first<MonitorRow>()
-  return row ? toMonitor(row) : null
+    .bind(now, staleBefore, limit)
+    .all<MonitorRow>()
+  return toClaimed(db, results, now)
 }
 
-/** Leaves the schedule, failure count and baseline alone when the config was edited during the run. */
+export const claimById = async (db: D1Database, id: string, now: string, staleBefore: string) => {
+  const { results } = await db
+    .prepare(`UPDATE monitors SET running_since = ?1 WHERE id = ?3 AND ${CLAIMABLE} RETURNING *`)
+    .bind(now, staleBefore, id)
+    .all<MonitorRow>()
+  return (await toClaimed(db, results, now))[0] ?? null
+}
+
+/** Releases the claim held since `claimedAt`; a no-op returning false when another run has taken it over. Leaves the schedule, failure count and baseline alone when the config was edited during the run. */
 export const finishRun = async (
   db: D1Database,
-  id: string,
-  configVersion: number,
+  { id, claimedAt, configVersion }: { id: string; claimedAt: string; configVersion: number },
   { nextRunAt, failureCount, lastValidRunId }: { nextRunAt: string; failureCount: number; lastValidRunId?: string },
 ) => {
-  await db
+  const { meta } = await db
     .prepare(
       `UPDATE monitors SET running_since = NULL,
         next_run_at = CASE WHEN config_version = ?1 THEN ?2 ELSE next_run_at END,
         failure_count = CASE WHEN config_version = ?1 THEN ?3 ELSE failure_count END,
         last_valid_run_id = CASE WHEN config_version = ?1 THEN COALESCE(?4, last_valid_run_id) ELSE last_valid_run_id END
-      WHERE id = ?5`,
+      WHERE id = ?5 AND running_since = ?6`,
     )
-    .bind(configVersion, nextRunAt, failureCount, lastValidRunId ?? null, id)
+    .bind(configVersion, nextRunAt, failureCount, lastValidRunId ?? null, id, claimedAt)
     .run()
+  return meta.changes === 1
 }

@@ -2,7 +2,8 @@
 
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { insertMonitor } from '../src/db/monitors'
+import { finishRun, insertMonitor } from '../src/db/monitors'
+import { beginRun } from '../src/db/runs'
 import { baseConfig as config, monitorRow, resetTables, tick } from './helpers'
 
 const T0 = new Date(Date.now() - 2 * 3_600_000).toISOString()
@@ -19,6 +20,19 @@ const setMonitor = (id: string, sql: string, ...values: unknown[]) =>
 
 const count = async (table: 'runs' | 'events' | 'notifications') =>
   (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<number>('n')) ?? 0
+
+const runs = async () =>
+  (
+    await env.DB.prepare(
+      'SELECT run_id, monitor_id, scheduled_at, status, error FROM runs ORDER BY started_at, run_id',
+    ).all<{
+      run_id: string
+      monitor_id: string
+      scheduled_at: string
+      status: string
+      error: string | null
+    }>()
+  ).results
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 
@@ -59,7 +73,8 @@ describe('scheduled', () => {
     servePage('Sold out')
     await tick()
 
-    expect(await monitorRow(id)).toMatchObject({ last_valid_run_id: `${id}:${T0}` })
+    const [first] = await runs()
+    expect(await monitorRow(id)).toMatchObject({ last_valid_run_id: first?.run_id })
     expect(await count('events')).toBe(0)
 
     await setMonitor(id, 'next_run_at = ?', T1)
@@ -74,22 +89,6 @@ describe('scheduled', () => {
     ])
   })
 
-  it('does not duplicate runs or events when the same run id is re-run', async () => {
-    const id = await insertMonitor(env.DB, config, T0)
-    servePage('Sold out')
-    await tick()
-    servePage('In stock')
-    for (let i = 0; i < 2; i++) {
-      await setMonitor(id, 'next_run_at = ?, last_valid_run_id = ?', T1, `${id}:${T0}`)
-      await tick()
-    }
-
-    expect(await count('runs')).toBe(2)
-    expect(await monitorRow(id)).toMatchObject({ last_valid_run_id: `${id}:${T1}` })
-    expect(await count('events')).toBe(1)
-    expect(await count('notifications')).toBe(2)
-  })
-
   it('keeps the last valid run on an unknown observation', async () => {
     const id = await insertMonitor(env.DB, config, T0)
     servePage('Sold out')
@@ -98,8 +97,9 @@ describe('scheduled', () => {
     servePage('', 500)
     await tick()
 
-    expect(await monitorRow(id)).toMatchObject({ last_valid_run_id: `${id}:${T0}` })
-    const state = await env.DB.prepare('SELECT state FROM runs WHERE run_id = ?').bind(`${id}:${T1}`).first('state')
+    const [first, second] = await runs()
+    expect(await monitorRow(id)).toMatchObject({ last_valid_run_id: first?.run_id })
+    const state = await env.DB.prepare('SELECT state FROM runs WHERE run_id = ?').bind(second?.run_id).first('state')
     expect(state).toBe('unknown')
   })
 
@@ -194,5 +194,126 @@ describe('scheduled', () => {
 
     expect(fetched.sort()).toEqual(urls)
     expect(maxSameHost).toBe(1)
+  })
+
+  it('claims monitors on other hosts while a slow host still holds the previous claims', async () => {
+    for (let i = 0; i < 20; i++) {
+      await insertMonitor(env.DB, { ...config, source: { type: 'http', url: `https://slow.example/${i}` } }, T0)
+    }
+    const other = await insertMonitor(env.DB, { ...config, source: { type: 'http', url: 'https://example.org/' } }, T1)
+    let release = () => {}
+    const slow = new Promise<void>((r) => {
+      release = r
+    })
+    let slowStarted = () => {}
+    const started = new Promise<void>((r) => {
+      slowStarted = r
+    })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (new URL(String(input)).host === 'slow.example') {
+        slowStarted()
+        await slow
+      }
+      return new Response('<p id="stock">In stock</p>')
+    })
+
+    const first = tick()
+    await started
+    await tick()
+
+    expect((await runs()).filter((r) => r.monitor_id === other)).toMatchObject([{ status: 'done' }])
+    release()
+    await first
+  })
+
+  it('marks the taken-over run and ignores its late finish', async () => {
+    const id = await insertMonitor(env.DB, config, T0)
+    const staleClaim = minutesAgo(11)
+    const staleRunId = `${id}:${staleClaim}`
+    await setMonitor(id, 'running_since = ?', staleClaim)
+    await env.DB.prepare(
+      `INSERT INTO runs (run_id, monitor_id, config_version, scheduled_at, started_at, status) VALUES (?, ?, 1, ?, ?, 'running')`,
+    )
+      .bind(staleRunId, id, T0, staleClaim)
+      .run()
+    servePage('In stock')
+
+    await tick()
+
+    const [old, current] = await runs()
+    expect(old).toMatchObject({ run_id: staleRunId, status: 'error', error: 'taken over' })
+    expect(current).toMatchObject({ status: 'done' })
+    expect(current?.run_id).not.toBe(staleRunId)
+    const before = await monitorRow(id)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const finished = await finishRun(
+      env.DB,
+      { id, claimedAt: staleClaim, configVersion: 1 },
+      { nextRunAt: T0, failureCount: 3, lastValidRunId: staleRunId },
+    )
+    expect(finished).toBe(false)
+    expect(await monitorRow(id)).toEqual(before)
+  })
+
+  it('does not record the same transition twice when a run dies after creating its event', async () => {
+    const id = await insertMonitor(env.DB, config, T0)
+    servePage('Sold out')
+    await tick()
+    const [baseline] = await runs()
+    await setMonitor(id, 'next_run_at = ?, running_since = ?', T1, minutesAgo(11))
+    await env.DB.prepare(
+      `INSERT INTO events (id, run_id, monitor_id, kind, summary, occurred_at) VALUES (?, ?, ?, 'entered', '', ?)`,
+    )
+      .bind(`${baseline?.run_id}:entered`, baseline?.run_id, id, T1)
+      .run()
+    servePage('In stock')
+
+    await tick()
+
+    expect(await count('events')).toBe(1)
+  })
+
+  it('does not start a run whose claim was taken over before it began', async () => {
+    const id = await insertMonitor(env.DB, config, T0)
+    await setMonitor(id, 'running_since = ?', minutesAgo(1))
+
+    const begun = await beginRun(
+      env.DB,
+      { runId: `${id}:late`, monitorId: id, configVersion: 1, scheduledAt: T0, startedAt: minutesAgo(0) },
+      minutesAgo(11),
+    )
+
+    expect(begun).toBe(false)
+    expect(await count('runs')).toBe(0)
+  })
+
+  it('runs a 1-minute monitor on every tick despite cron jitter', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const start = Math.floor(Date.now() / 60_000) * 60_000
+      await insertMonitor(
+        env.DB,
+        { ...config, schedule: { type: 'interval', minutes: 1 } },
+        new Date(start).toISOString(),
+      )
+      servePage('In stock')
+      for (let i = 0; i < 30; i++) {
+        vi.setSystemTime(start + i * 60_000 + Math.floor(Math.random() * 501))
+        await tick()
+      }
+      expect(await count('runs')).toBe(30)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('dates the first run of a long-disabled monitor within one interval of now', async () => {
+    await insertMonitor(env.DB, config, minutesAgo(40 * 24 * 60))
+    servePage('In stock')
+
+    await tick()
+
+    const [run] = await runs()
+    expect(Date.now() - Date.parse(run!.scheduled_at)).toBeLessThan(61 * 60_000)
   })
 })
