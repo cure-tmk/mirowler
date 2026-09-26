@@ -28,6 +28,9 @@ function resolveLocal(wall: number, timeZone: string): number | null {
   return candidates.find((t) => wallClockAsUtc(t, timeZone) === wall) ?? null
 }
 
+/** `d` with seconds and milliseconds dropped. */
+export const floorToMinute = (d: Date): Date => new Date(Math.floor(d.getTime() / MINUTE) * MINUTE)
+
 /** Next run time as UTC ISO. For `daily`, the first `time` in `timezone` strictly after `from`; days where the local time does not exist are skipped, and an ambiguous local time resolves to its first occurrence. */
 export function computeNextRunAt(schedule: Schedule, from: Date): string {
   if (schedule.type === 'interval') {

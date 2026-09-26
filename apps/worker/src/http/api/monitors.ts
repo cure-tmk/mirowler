@@ -67,9 +67,10 @@ export const monitorsApi = new Hono<AppEnv>()
   })
   .post('/:id/run', async (c) => {
     const id = c.req.param('id')
-    const runId = await runNow(c.env, id)
-    if (runId) {
-      return c.json({ runId })
+    const run = await runNow(c.env, id)
+    if (run) {
+      c.executionCtx.waitUntil(run.done)
+      return c.json({ runId: run.runId }, 202)
     }
     return (await getMonitor(c.env.DB, id))
       ? c.json({ error: 'already running' }, 409)

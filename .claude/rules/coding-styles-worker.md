@@ -14,8 +14,9 @@
 
 ## The claim rule
 
-- The claim itself is one conditional UPDATE per monitor that sets `running_since` only if the monitor is still due and not held by a live claim; a monitor with a live `running_since` is never run twice. Don't replace that guard with an unconditional write after a SELECT.
-- Further hardening of claim, finish, and scheduling is tracked in the issue "Claim, finish, and schedule robustness".
+- The claim is a single `UPDATE monitors SET running_since = ? WHERE id IN (SELECT ... LIMIT ?) RETURNING *`. The subquery selects only due monitors that are not held by a live claim (`running_since` is NULL or older than the stale window), so running monitors never occupy the limit and a monitor with a live claim is never run twice. Don't split it into a SELECT followed by per-row UPDATEs.
+- `finishRun` is scoped to the claim: it matches `running_since` against the claimed timestamp, so a run that finishes after being taken over changes nothing.
+- Run ids are built from the monitor id and the claim timestamp; taking over a stale claim marks the previous `running` run row as an error, and a run only starts while its claim is still held. Event ids are keyed on the baseline run, so a transition re-observed after a takeover is not notified twice.
 
 ## Secrets
 

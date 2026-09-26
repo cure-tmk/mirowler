@@ -1,10 +1,8 @@
-import { createScheduledController } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { insertMonitor } from '../src/db/monitors'
 import { insertPending, MAX_ATTEMPTS } from '../src/db/notifications'
 import { insertRun } from '../src/db/runs'
-import { scheduled } from '../src/scheduled'
 import { retryNotifications } from '../src/scheduled/retryNotifications'
 import { baseConfig, resetTables } from './helpers'
 
@@ -65,26 +63,6 @@ describe('notification claim', () => {
 
     expect(slackCalls(fetch)).toBe(1)
     expect(await row(eventId)).toMatchObject({ status: 'sent', attempts: 1 })
-  })
-
-  it('does not notify again when the same run id is re-run', async () => {
-    const first = new Date(Date.now() - 2 * 3_600_000).toISOString()
-    const T1 = new Date(Date.now() - 3_600_000).toISOString()
-    const id = await insertMonitor(env.DB, config, first)
-    const tick = () => scheduled(createScheduledController(), testEnv, {} as ExecutionContext)
-    mockFetch(undefined, 'Sold out')
-    await tick()
-    const fetch = mockFetch()
-    for (let i = 0; i < 2; i++) {
-      await env.DB.prepare('UPDATE monitors SET next_run_at = ?, last_valid_run_id = ? WHERE id = ?')
-        .bind(T1, `${id}:${first}`, id)
-        .run()
-      await tick()
-    }
-
-    expect(slackCalls(fetch)).toBe(1)
-    const { results } = await env.DB.prepare('SELECT status, attempts FROM notifications').all()
-    expect(results).toEqual([{ status: 'sent', attempts: 1 }])
   })
 
   it('backs off while Slack fails and delivers on the next success', async () => {

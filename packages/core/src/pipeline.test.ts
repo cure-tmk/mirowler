@@ -43,7 +43,7 @@ describe('runCheck', () => {
   it('emits entered when the condition is entered', async () => {
     const { observation, event } = await run(fetchOk())
     expect(observation).toMatchObject({ state: 'matched', value: { jpy: 900 }, configVersion: 2 })
-    expect(event?.id).toBe('r1:entered')
+    expect(event?.id).toBe('r0:entered')
   })
 
   it('non-2xx becomes unknown without event', async () => {

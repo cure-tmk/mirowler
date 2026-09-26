@@ -1,8 +1,9 @@
-import { applyD1Migrations } from 'cloudflare:test'
+import { applyD1Migrations, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import type { MonitorConfig } from '@mirowler/core'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { insertMonitor } from '../src/db/monitors'
+import { app } from '../src/http/app'
 import { runNow } from '../src/scheduled'
 
 const config: MonitorConfig = {
@@ -30,7 +31,7 @@ describe('runNow', () => {
   it('records a run without an event, a baseline or a schedule change', async () => {
     const id = await insertMonitor(env.DB, config, created)
 
-    expect(await runNow(env, id)).toBeTruthy()
+    await (await runNow(env, id))?.done
 
     expect(await count(`SELECT COUNT(*) AS n FROM runs WHERE monitor_id = ? AND state = 'matched'`, id)).toBe(1)
     expect(await count('SELECT COUNT(*) AS n FROM events WHERE monitor_id = ?', id)).toBe(0)
@@ -47,5 +48,24 @@ describe('runNow', () => {
 
     expect(await runNow(env, id)).toBeNull()
     expect(await count('SELECT COUNT(*) AS n FROM runs WHERE monitor_id = ?', id)).toBe(0)
+  })
+
+  it('answers 202 before the run finishes and the run reaches done', async () => {
+    const id = await insertMonitor(env.DB, config, created)
+    const ctx = createExecutionContext()
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/monitors/${id}/run`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${btoa('admin:s3cret')}` },
+      }),
+      { ...env, ADMIN_BASIC_AUTH: 'admin:s3cret' },
+      ctx,
+    )
+    expect(res.status).toBe(202)
+    const { runId } = await res.json<{ runId: string }>()
+    await waitOnExecutionContext(ctx)
+
+    expect(await env.DB.prepare('SELECT status FROM runs WHERE run_id = ?').bind(runId).first('status')).toBe('done')
   })
 })

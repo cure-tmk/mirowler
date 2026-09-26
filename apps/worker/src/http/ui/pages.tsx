@@ -319,7 +319,9 @@ export const pages = new Hono<AppEnv>()
   })
   .post('/monitors/:id/run', async (c) => {
     const id = c.req.param('id')
-    if (await runNow(c.env, id)) {
+    const run = await runNow(c.env, id)
+    if (run) {
+      c.executionCtx.waitUntil(run.done)
       return c.redirect(`/monitors/${id}`)
     }
     if (!(await getMonitor(c.env.DB, id))) {
