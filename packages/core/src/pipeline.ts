@@ -25,7 +25,7 @@ async function observe({
   try {
     const fetched = await fetcher(monitor.source)
     if (fetched.status < 200 || fetched.status >= 300) {
-      return { ...base, value: null, state: 'unknown', reason: `HTTP ${fetched.status}` }
+      return { ...base, value: null, state: 'unknown', reason: `HTTP ${fetched.status}`, httpStatus: fetched.status }
     }
     const extracted = await extractor(fetched, monitor.extractor)
     if (extracted.value === null) {

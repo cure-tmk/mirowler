@@ -1,0 +1,1 @@
+ALTER TABLE monitors ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0;
