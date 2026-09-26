@@ -29,11 +29,34 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
    pnpm -F @mirowler/worker migrate:local
    ```
 
-4. Create `apps/worker/.dev.vars` and set `ADMIN_BASIC_AUTH` and the Slack webhook secret
-5. Start the dev server
+4. Create `apps/worker/.dev.vars`. `ADMIN_BASIC_AUTH` is required; add a line per channel secret (e.g. `SLACK_WEBHOOK_LOCAL=https://hooks.slack.com/...`) only if you want real Slack delivery
+
+   ```sh
+   ADMIN_BASIC_AUTH=admin:localpass
+   ```
+
+5. Start the dev server (`wrangler dev --test-scheduled`, on `http://localhost:8787`)
 
    ```sh
    pnpm dev
+   ```
+
+6. Register a channel, then a monitor using the returned channel id
+
+   ```sh
+   curl -u admin:localpass -H 'content-type: application/json' \
+     -d '{"displayName":"local","secretName":"SLACK_WEBHOOK_LOCAL"}' \
+     http://localhost:8787/api/channels
+   curl -u admin:localpass -H 'content-type: application/json' \
+     -d '{"name":"example","schedule":{"type":"interval","minutes":1},"source":{"type":"http","url":"https://example.com/"},"extractor":{"type":"css_text","selector":"h1","parse":"text"},"evaluator":{"type":"rule","field":"text","op":"contains","value":"Example"},"trigger":{"type":"on_enter"},"channelIds":["<channel id>"]}' \
+     http://localhost:8787/api/monitors
+   ```
+
+7. Trigger the scheduled handler and read the run it recorded
+
+   ```sh
+   curl 'http://localhost:8787/__scheduled?cron=*+*+*+*+*'
+   curl -u admin:localpass http://localhost:8787/api/monitors/<monitor id>/runs
    ```
 
 ## Commands
