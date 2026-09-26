@@ -1,4 +1,4 @@
-import type { EventKind, MonitorEvent, Observation, ObservedValue, TriggerConfig } from './monitor'
+import type { EvaluatorConfig, EventKind, MonitorEvent, Observation, ObservedValue, TriggerConfig } from './monitor'
 
 type DecideInput = {
   monitorId: string
@@ -7,6 +7,7 @@ type DecideInput = {
   previousValid: Observation | null
   current: Observation
   trigger: TriggerConfig
+  evaluatorType: EvaluatorConfig['type']
   now: string
 }
 
@@ -18,7 +19,10 @@ function sameValue(a: ObservedValue | null, b: ObservedValue | null): boolean {
   return [...keys].every((k) => a[k] === b[k])
 }
 
-/** Returns null for the baseline (first valid observation) and for any transition involving `unknown`. */
+/**
+ * Returns null for the baseline (first valid observation) and for any transition involving `unknown`.
+ * For `change` evaluators every `matched` observation is an event and `trigger` is ignored.
+ */
 export function decideEvent({
   monitorId,
   monitorName,
@@ -26,13 +30,18 @@ export function decideEvent({
   previousValid,
   current,
   trigger,
+  evaluatorType,
   now,
 }: DecideInput): MonitorEvent | null {
   if (previousValid === null || previousValid.state === 'unknown' || current.state === 'unknown') {
     return null
   }
   let kind: EventKind | null = null
-  if (trigger.type === 'on_enter') {
+  if (evaluatorType === 'change') {
+    if (current.state === 'matched') {
+      kind = 'value_changed'
+    }
+  } else if (trigger.type === 'on_enter') {
     if (previousValid.state === 'not_matched' && current.state === 'matched') {
       kind = 'entered'
     }
@@ -51,7 +60,10 @@ export function decideEvent({
     runId,
     monitorId,
     kind,
-    summary: `${monitorName}: ${kind} ${JSON.stringify(current.value)}`,
+    summary:
+      evaluatorType === 'change'
+        ? `${monitorName}: ${kind} ${JSON.stringify(previousValid.value)} -> ${JSON.stringify(current.value)}`
+        : `${monitorName}: ${kind} ${JSON.stringify(current.value)}`,
     occurredAt: now,
   }
 }

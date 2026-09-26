@@ -50,6 +50,7 @@ export async function runCheck(
     previousValid: input.previousValid,
     current: observation,
     trigger: input.monitor.trigger,
+    evaluatorType: input.monitor.evaluator.type,
     now: input.now,
   })
   return { observation, event }
