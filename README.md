@@ -74,3 +74,10 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
 | `pnpm -F @mirowler/worker typecheck` / `test` / `dev` / `deploy` / `migrate:local` | worker only |
 
 CI runs `pnpm ai:verify` and a worker deploy dry run (`pnpm -F @mirowler/worker deploy:dry-run`) on every pull request and on pushes to `main`.
+
+## Release
+
+- Every push to `main` that passes CI gets a `v*` tag computed from the Conventional Commits since the last tag (`.github/scripts/next-tag.sh`, runnable locally): `feat` bumps minor, any other type bumps patch, and `!` or `BREAKING CHANGE` bumps major (minor while the major is 0). The first tag is `v0.1.0`.
+- `v1.0.0` is never computed; a maintainer pushes it by hand.
+- Releases are manual: Actions → Release → Run workflow, with an optional tag (empty means the latest tag). It applies remote D1 migrations, deploys the Worker, and creates the GitHub Release with generated notes; dispatching an already released tag only redeploys.
+- The workflow needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
