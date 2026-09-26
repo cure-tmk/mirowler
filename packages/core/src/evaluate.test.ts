@@ -56,8 +56,15 @@ describe('evaluateRule: change', () => {
     expect((await run(c, { jpy: 901 }, prev({ jpy: 1000 }))).state).toBe('not_matched')
   })
 
-  it('unknown without previous, non-numeric, missing percent', async () => {
-    expect((await run({ type: 'change', field: 'jpy', op: 'changed' }, { jpy: 1 })).state).toBe('unknown')
+  it('a first observation is a not_matched baseline unless a numeric op gets an unusable value', async () => {
+    expect((await run({ type: 'change', field: 'jpy', op: 'changed' }, { jpy: 1 })).state).toBe('not_matched')
+    const c = { type: 'change', field: 'jpy', op: 'decreased_by_percent', value: 10 } as const
+    expect((await run(c, { jpy: 1 })).state).toBe('not_matched')
+    expect((await run(c, { jpy: null })).state).toBe('unknown')
+    expect((await run(c, { jpy: 0 })).state).toBe('unknown')
+  })
+
+  it('unknown on non-numeric or missing percent', async () => {
     expect((await run({ type: 'change', field: 'jpy', op: 'decreased' }, { jpy: 1 }, prev({ jpy: null }))).state).toBe(
       'unknown',
     )

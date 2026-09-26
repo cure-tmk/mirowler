@@ -44,6 +44,19 @@ Target URLs, selectors and condition values stay outside the repository; only th
 
 The reference shape and the selectors it relies on are in the [fixtures README](test/fixtures/README.md).
 
+## Registering a price monitor
+
+A monitored price is identified by everything that selects it: the page, the variant, the quantity, the plan, the currency, and whether tax and fees are included.
+Put those conditions in the monitor name, for example the variant and "tax incl.", so the name says which price it tracks.
+Never change them in place. An edit bumps the config version and starts a new baseline, so comparisons never mix two different prices; to track a different price, create another monitor.
+An absolute threshold and a relative drop are separate monitors:
+
+- `rule` with `lt` (or `lte`) matches while the price is below a fixed amount
+- `change` with `decreased_by_percent` compares against the previous valid observation; the first valid observation is only the baseline and never notifies
+
+Daily schedules take an IANA time zone name such as `Asia/Tokyo`.
+A price that cannot be found or parsed yields `unknown`, which never notifies and never moves the baseline.
+
 ## Run locally
 
 ```sh

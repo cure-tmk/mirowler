@@ -27,7 +27,13 @@ export const evaluateRule: Evaluator = async ({ value, previousValid, config }) 
   }
 
   if (previousValid === null) {
-    return unknown('no previous valid observation')
+    if (config.op !== 'changed' && typeof current !== 'number') {
+      return unknown(`${config.op} requires numeric values`)
+    }
+    if (config.op === 'decreased_by_percent' && typeof current === 'number' && current <= 0) {
+      return unknown('value must be positive for percent change')
+    }
+    return result(false)
   }
   const previous = previousValid.value?.[config.field]
   if (previous === undefined) {
