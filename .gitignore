@@ -1,0 +1,10 @@
+node_modules
+dist
+.turbo
+.wrangler
+*.log
+.env*
+.dev.vars*
+.claude/state/
+**/.DS_Store
+apps/worker/worker-configuration.d.ts

@@ -1,0 +1,29 @@
+{
+  "name": "mirowler",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "scripts": {
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "biome check --diagnostic-level=error",
+    "check:ci": "biome ci --diagnostic-level=error",
+    "fix": "biome check --write --diagnostic-level=error",
+    "format": "biome format --write",
+    "dev": "pnpm -F @mirowler/worker dev",
+    "deploy": "turbo run deploy",
+    "ai:verify": "pnpm check && pnpm typecheck && pnpm test",
+    "ai:verify:fast": "pnpm check && pnpm typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/types": "21.2.3",
+    "conventional-changelog-conventionalcommits": "10.4.0",
+    "turbo": "2.11.4",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@mirowler/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "types": "wrangler types",
+    "typecheck": "wrangler types && tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply mirowler --local",
+    "migrate:remote": "wrangler d1 migrations apply mirowler --remote"
+  },
+  "dependencies": {
+    "@mirowler/core": "workspace:*",
+    "hono": "4.13.9"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "vitest": "4.1.11",
+    "wrangler": "4.141.0"
+  }
+}

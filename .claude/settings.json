@@ -1,0 +1,41 @@
+{
+  "includeCoAuthoredBy": false,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/commitlint-before-commit.sh",
+            "timeout": 30,
+            "statusMessage": "Validating commit message"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/biome-after-edit.sh",
+            "timeout": 30,
+            "statusMessage": "Running Biome on edited file"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/typecheck-after-edit.sh",
+            "async": true,
+            "timeout": 180,
+            "statusMessage": "Queueing package typecheck"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": ["Edit(apps/worker/worker-configuration.d.ts)", "Write(apps/worker/worker-configuration.d.ts)"]
+  }
+}
