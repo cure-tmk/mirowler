@@ -37,7 +37,7 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
    ADMIN_BASIC_AUTH=admin:localpass
    ```
 
-5. Start the dev servers: the web package is built once, then `wrangler dev --test-scheduled` runs on `http://localhost:8787` and the Vite dev server on `http://localhost:5173` (open this one; it proxies `/api` to the Worker)
+5. Start the dev servers: the web package is built once, then `wrangler dev --test-scheduled` runs on `http://localhost:8787` and the Vite dev server on `http://localhost:5173` (open this one; it proxies `/api` to the Worker with the `ADMIN_BASIC_AUTH` credential from `.dev.vars`, so no login prompt appears)
 
    ```sh
    pnpm dev
