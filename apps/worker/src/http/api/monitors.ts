@@ -1,6 +1,5 @@
 import { monitorConfigSchema } from '@mirowler/core'
 import { type Context, Hono } from 'hono'
-import { assertPublicHttpsUrl } from '../../adapters/httpFetcher'
 import { findUnknownChannelIds } from '../../db/channels'
 import {
   deleteMonitor,
@@ -15,6 +14,7 @@ import { getLastValid } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
 import { badRequest } from './badRequest'
+import { parseConfig } from './parseConfig'
 
 const readConfig = async (req: Request, json: boolean): Promise<unknown> => {
   if (json) {
@@ -26,19 +26,16 @@ const readConfig = async (req: Request, json: boolean): Promise<unknown> => {
 
 const isJson = (c: Context<AppEnv>) => c.req.header('content-type')?.includes('application/json') ?? false
 
-const parseConfig = async (c: Context<AppEnv>, json: boolean) => {
-  const parsed = monitorConfigSchema.safeParse(await readConfig(c.req.raw, json).catch(() => undefined))
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
-    return { error: badRequest(c, 'invalid config', issues) }
+const parseMonitorConfig = async (c: Context<AppEnv>, json: boolean) => {
+  const { config, error } = parseConfig(
+    c,
+    monitorConfigSchema,
+    await readConfig(c.req.raw, json).catch(() => undefined),
+  )
+  if (!config) {
+    return { error }
   }
-  try {
-    assertPublicHttpsUrl(parsed.data.source.url)
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    return { error: badRequest(c, 'invalid config', [{ path: 'source.url', message }]) }
-  }
-  const unknown = await findUnknownChannelIds(c.env.DB, parsed.data.channelIds)
+  const unknown = await findUnknownChannelIds(c.env.DB, config.channelIds)
   if (unknown.length > 0) {
     return {
       error: badRequest(c, 'invalid config', [
@@ -46,13 +43,13 @@ const parseConfig = async (c: Context<AppEnv>, json: boolean) => {
       ]),
     }
   }
-  return { config: parsed.data }
+  return { config }
 }
 
 const update = async (c: Context<AppEnv>) => {
   const id = c.req.param('id')!
   const json = isJson(c)
-  const { config, error } = await parseConfig(c, json)
+  const { config, error } = await parseMonitorConfig(c, json)
   if (!config) {
     return error
   }
@@ -74,7 +71,7 @@ export const monitorsApi = new Hono<AppEnv>()
   })
   .post('/', async (c) => {
     const json = isJson(c)
-    const { config, error } = await parseConfig(c, json)
+    const { config, error } = await parseMonitorConfig(c, json)
     if (!config) {
       return error
     }

@@ -16,7 +16,7 @@ Pure domain package. It holds the decision logic of a monitor: value parsing, ru
 - `trigger.ts`: decides the notification event from the previous valid observation and the current one; for `change` evaluators every `matched` observation is an event
 - `schedule.ts`: next run time for `interval` / `daily` schedules, including backoff after consecutive failures
 - `runId.ts`: deterministic run ID from monitor ID and claim time
-- `pipeline.ts`: `runCheck`, from fetch to event decision
+- `pipeline.ts`: `observe`, one fetch, extract and evaluate (also used by the preview), and `runCheck`, from fetch to event decision
 
 ## Contract
 

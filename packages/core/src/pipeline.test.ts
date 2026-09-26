@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { evaluateRule } from './evaluate'
 import type { Monitor, Observation } from './monitor'
-import { runCheck } from './pipeline'
+import { observe, runCheck } from './pipeline'
 import type { Extractor, Fetcher } from './ports'
 
 const monitor: Monitor = {
@@ -62,5 +62,19 @@ describe('runCheck', () => {
   it('missing extracted value keeps extractor reason', async () => {
     const { observation } = await run(fetchOk(), async () => ({ value: null, reason: 'selector not found' }))
     expect(observation).toMatchObject({ state: 'unknown', reason: 'selector not found' })
+  })
+})
+
+describe('observe', () => {
+  it('returns the value without a state when no evaluator config is given', async () => {
+    const observed = await observe({
+      source: monitor.source,
+      extractorConfig: monitor.extractor,
+      previousValid: null,
+      fetcher: fetchOk(),
+      extractor: extract(900),
+      evaluator: evaluateRule,
+    })
+    expect(observed).toEqual({ value: { jpy: 900 } })
   })
 })
