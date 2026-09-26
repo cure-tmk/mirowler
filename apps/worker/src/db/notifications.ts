@@ -1,6 +1,19 @@
 import type { MonitorEvent } from '@mirowler/core'
 
-export const MAX_ATTEMPTS = 5
+export const MAX_ATTEMPTS = 8
+
+/** A `sending` claim older than this is treated as abandoned by a dead isolate. */
+export const SENDING_STALE_MS = 10 * 60_000
+
+const MINUTE_MS = 60_000
+
+const staleBefore = (now: Date) => new Date(now.getTime() - SENDING_STALE_MS).toISOString()
+
+const CLAIMABLE = `(status = 'pending' OR (status = 'sending' AND claimed_at < ?2 AND attempts < ${MAX_ATTEMPTS}))
+  AND (next_attempt_at IS NULL OR next_attempt_at <= ?1)`
+
+/** Retry delay after the given attempt: 1, 2, 4, ... minutes, capped at 60. */
+export const retryDelayMs = (attempts: number) => Math.min(2 ** (attempts - 1), 60) * MINUTE_MS
 
 export const insertPending = async (db: D1Database, eventId: string, channelId: string) => {
   await db
@@ -11,6 +24,7 @@ export const insertPending = async (db: D1Database, eventId: string, channelId: 
 
 export const listPending = async (
   db: D1Database,
+  now: Date,
   limit = 50,
 ): Promise<{ event: MonitorEvent; channelId: string }[]> => {
   const { results } = await db
@@ -18,30 +32,56 @@ export const listPending = async (
       `SELECT e.id, e.run_id AS runId, e.monitor_id AS monitorId, e.kind, e.summary, e.occurred_at AS occurredAt,
        n.channel_id AS channelId
        FROM notifications n JOIN events e ON e.id = n.event_id
-       WHERE n.status = 'pending' AND n.attempts < ? ORDER BY e.occurred_at LIMIT ?`,
+       WHERE ${CLAIMABLE} ORDER BY e.occurred_at LIMIT ?3`,
     )
-    .bind(MAX_ATTEMPTS, limit)
+    .bind(now.toISOString(), staleBefore(now), limit)
     .all<MonitorEvent & { channelId: string }>()
   return results.map(({ channelId, ...event }) => ({ event, channelId }))
 }
 
-export const markSent = async (db: D1Database, eventId: string, channelId: string, now: string) => {
-  await db
+export type Claim = { claimedAt: string; attempts: number }
+
+/** Marks the row `sending` and counts the attempt. Returns null when another tick holds it or it is not due. */
+export const claimNotification = async (
+  db: D1Database,
+  eventId: string,
+  channelId: string,
+  now: Date,
+): Promise<Claim | null> => {
+  const claimedAt = now.toISOString()
+  const { results, meta } = await db
     .prepare(
-      `UPDATE notifications SET status = 'sent', attempts = attempts + 1, sent_at = ?, last_error = NULL WHERE event_id = ? AND channel_id = ?`,
+      `UPDATE notifications SET status = 'sending', claimed_at = ?1, attempts = attempts + 1
+       WHERE event_id = ?3 AND channel_id = ?4 AND ${CLAIMABLE} RETURNING attempts`,
     )
-    .bind(now, eventId, channelId)
+    .bind(claimedAt, staleBefore(now), eventId, channelId)
+    .all<{ attempts: number }>()
+  const row = results[0]
+  return meta.changes === 1 && row ? { claimedAt, attempts: row.attempts } : null
+}
+
+const OWNED = `event_id = ? AND channel_id = ? AND status = 'sending' AND claimed_at = ?`
+
+export const markSent = async (db: D1Database, eventId: string, channelId: string, claim: Claim, now: Date) => {
+  await db
+    .prepare(`UPDATE notifications SET status = 'sent', sent_at = ?, last_error = NULL WHERE ${OWNED}`)
+    .bind(now.toISOString(), eventId, channelId, claim.claimedAt)
     .run()
 }
 
-export const markFailed = async (db: D1Database, eventId: string, channelId: string, error: string) => {
+export const markFailed = async (
+  db: D1Database,
+  eventId: string,
+  channelId: string,
+  claim: Claim,
+  error: string,
+  now: Date,
+) => {
+  const giveUp = claim.attempts >= MAX_ATTEMPTS
+  const nextAttemptAt = giveUp ? null : new Date(now.getTime() + retryDelayMs(claim.attempts)).toISOString()
   await db
-    .prepare(
-      `UPDATE notifications SET attempts = attempts + 1, last_error = ?,
-       status = CASE WHEN attempts + 1 >= ? THEN 'failed' ELSE 'pending' END
-       WHERE event_id = ? AND channel_id = ?`,
-    )
-    .bind(error, MAX_ATTEMPTS, eventId, channelId)
+    .prepare(`UPDATE notifications SET status = ?, next_attempt_at = ?, last_error = ? WHERE ${OWNED}`)
+    .bind(giveUp ? 'failed' : 'pending', nextAttemptAt, error, eventId, channelId, claim.claimedAt)
     .run()
 }
 
