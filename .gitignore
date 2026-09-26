@@ -8,3 +8,4 @@ dist
 .claude/state/
 **/.DS_Store
 apps/worker/worker-configuration.d.ts
+.claude/worktrees/

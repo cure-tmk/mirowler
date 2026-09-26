@@ -18,7 +18,7 @@ A basis for picking a verification command proportionate to the change.
   - When unsure, use `pnpm ai:verify:fast`
 - Changes under `apps/worker/`
   - `pnpm -F @mirowler/worker typecheck` and `pnpm -F @mirowler/worker test`
-  - If `wrangler.jsonc`, `migrations/`, or binding configuration changed, also run `pnpm -F @mirowler/worker deploy --dry-run`
+  - If `wrangler.jsonc`, `migrations/`, or binding configuration changed, also run `pnpm -F @mirowler/worker deploy:dry-run`
 - `package.json`, `biome.json`, `tsconfig.base.json`, CI config changes
   - `pnpm ai:verify:fast`
 - High-risk or cross-cutting changes
@@ -28,3 +28,4 @@ A basis for picking a verification command proportionate to the change.
 
 - If you don't rerun everything locally, say explicitly what was left unverified.
 - Only run `wrangler deploy` (beyond dry-run), or an actual deploy, when explicitly requested.
+- Never write `pnpm -F @mirowler/worker deploy --dry-run`: pnpm does not forward `--dry-run` to the script and a real deploy runs. Use `deploy:dry-run`.

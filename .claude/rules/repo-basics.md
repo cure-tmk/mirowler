@@ -30,4 +30,4 @@ See `verification.md` for details. At minimum:
 
 - Right after an edit: `pnpm ai:verify:fast`
 - Before wrapping up: `pnpm ai:verify`
-- After changing worker config: `pnpm -F @mirowler/worker deploy --dry-run`
+- After changing worker config: `pnpm -F @mirowler/worker deploy:dry-run`
