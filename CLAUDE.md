@@ -7,7 +7,7 @@ This file is the tool-specific entry point Claude Code follows in this repositor
 ## Read order
 
 1. `README.md`
-2. The relevant package README (`apps/worker/README.md` or `packages/core/README.md`)
+2. The relevant package README (`apps/worker/README.md`, `apps/web/README.md` or `packages/core/README.md`)
 3. `.claude/rules/`
 4. Relevant `.claude/skills/` (if any)
 
@@ -19,7 +19,7 @@ This file is the tool-specific entry point Claude Code follows in this repositor
 - Before wrapping up a broad change, prefer `pnpm ai:verify`
 - Deploys, releases, and any use of production-equivalent credentials happen only when explicitly requested
 - Act consistently with the `permissions` settings in `.claude/settings.json`
-- `.claude/hooks/` runs Biome automatically after `Edit`, `Write`, and `MultiEdit`, and queues an async typecheck for the affected package (`packages/core` or `apps/worker`)
+- `.claude/hooks/` runs Biome automatically after `Edit`, `Write`, and `MultiEdit`, and queues an async typecheck for the affected package (`packages/core`, `apps/worker` or `apps/web`)
 - `git commit` is validated by `.claude/hooks/` against commitlint; violations are blocked. See `.claude/rules/commit-message.md`
 
 ## References
