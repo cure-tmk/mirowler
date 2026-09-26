@@ -106,3 +106,16 @@ export const getLastValid = async (db: D1Database, monitorId: string): Promise<O
     ...(r.content_hash ? { contentHash: r.content_hash } : {}),
   }
 }
+
+/** Deletes runs scheduled before `cutoff` with their events and notifications, keeping every monitor's last valid run. */
+export const deleteRunsBefore = async (db: D1Database, cutoff: string) => {
+  const expired = `SELECT run_id FROM runs WHERE scheduled_at < ?1
+    AND run_id NOT IN (SELECT last_valid_run_id FROM monitors WHERE last_valid_run_id IS NOT NULL)`
+  await db.batch([
+    db
+      .prepare(`DELETE FROM notifications WHERE event_id IN (SELECT id FROM events WHERE run_id IN (${expired}))`)
+      .bind(cutoff),
+    db.prepare(`DELETE FROM events WHERE run_id IN (${expired})`).bind(cutoff),
+    db.prepare(`DELETE FROM runs WHERE run_id IN (${expired})`).bind(cutoff),
+  ])
+}

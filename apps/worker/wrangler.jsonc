@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "observability": { "enabled": true },
+  "vars": { "RETENTION_DAYS": 30 },
   "triggers": { "crons": ["* * * * *"] },
   "d1_databases": [
     {

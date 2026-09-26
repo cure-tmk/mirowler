@@ -15,8 +15,8 @@ declare global {
   }
 }
 
-const T0 = '2026-01-01T00:00:00.000Z'
-const T1 = '2026-01-01T01:00:00.000Z'
+const T0 = new Date(Date.now() - 2 * 3_600_000).toISOString()
+const T1 = new Date(Date.now() - 3_600_000).toISOString()
 
 const config: MonitorConfig = {
   name: 'stock',
@@ -129,5 +129,37 @@ describe('scheduled', () => {
     expect(await monitorRow(id)).toMatchObject({ last_valid_run_id: `${id}:${T0}` })
     const state = await env.DB.prepare('SELECT state FROM runs WHERE run_id = ?').bind(`${id}:${T1}`).first('state')
     expect(state).toBe('unknown')
+  })
+
+  it('deletes rows older than the retention period except the last valid run', async () => {
+    const id = await insertMonitor(env.DB, config, new Date(Date.now() + 86_400_000).toISOString())
+    const daysAgo = (d: number) => minutesAgo(d * 24 * 60)
+    const seed = (runId: string, scheduledAt: string) =>
+      env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO runs (run_id, monitor_id, config_version, scheduled_at, status) VALUES (?, ?, 1, ?, 'done')`,
+        ).bind(runId, id, scheduledAt),
+        env.DB.prepare(
+          `INSERT INTO events (id, run_id, monitor_id, kind, summary, occurred_at) VALUES (?, ?, ?, 'entered', '', ?)`,
+        ).bind(`ev-${runId}`, runId, id, scheduledAt),
+        env.DB.prepare(`INSERT INTO notifications (event_id, channel_id, status) VALUES (?, 'ch-a', 'sent')`).bind(
+          `ev-${runId}`,
+        ),
+      ])
+    await seed('old', daysAgo(31))
+    await seed('old-valid', daysAgo(40))
+    await seed('recent', daysAgo(29))
+    await setMonitor(id, 'last_valid_run_id = ?', 'old-valid')
+
+    await tick()
+
+    const { results } = await env.DB.prepare(
+      'SELECT runs.run_id, events.id AS event_id, notifications.channel_id FROM runs LEFT JOIN events ON events.run_id = runs.run_id LEFT JOIN notifications ON notifications.event_id = events.id ORDER BY runs.run_id',
+    ).all()
+    expect(results).toEqual([
+      { run_id: 'old-valid', event_id: 'ev-old-valid', channel_id: 'ch-a' },
+      { run_id: 'recent', event_id: 'ev-recent', channel_id: 'ch-a' },
+    ])
+    expect(await count('notifications')).toBe(2)
   })
 })
