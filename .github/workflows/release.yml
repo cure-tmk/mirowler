@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release; empty means the latest v* tag
+        type: string
+        required: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          LATEST=$(git tag --merged origin/main --list 'v*' --sort=-v:refname)
+          TAG=${INPUT_TAG:-${LATEST%%$'\n'*}}
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG does not exist" >&2
+            exit 1
+          fi
+          git checkout "$TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm -F @mirowler/worker exec wrangler d1 migrations apply mirowler --remote
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm -F @mirowler/worker exec wrangler deploy
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release exists, redeployed only"
+            echo "Redeployed \`$TAG\`; release already exists" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh release create "$TAG" --generate-notes --latest --title "$TAG"
+            echo "Deployed \`$TAG\` and created its release" >> "$GITHUB_STEP_SUMMARY"
+          fi

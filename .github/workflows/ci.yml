@@ -22,3 +22,25 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm ai:verify
       - run: pnpm -F @mirowler/worker deploy:dry-run
+
+  tag:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          TAG=$(.github/scripts/next-tag.sh)
+          if [ -z "$TAG" ]; then
+            echo "HEAD is already tagged" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Created tag \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
