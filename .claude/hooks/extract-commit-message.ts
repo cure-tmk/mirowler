@@ -234,8 +234,9 @@ const extract = (segment: string[], bodies: HeredocBodies, projectDir: string): 
     }
 
     // `-m` / `-F` can appear standalone, as `-m<value>` attached directly, or
-    // bundled into a short option group like `-am`.
-    const bundled = token.match(/^-([A-Za-z]*)([mF])(.*)$/)
+    // bundled into a short option group like `-am`. The first `m`/`F` ends the
+    // group, so `-mFix` is `-m Fix`, not `-m` followed by `-F ix`.
+    const bundled = token.match(/^-([A-Za-z]*?)([mF])(.*)$/)
     const isMessage = token === '--message' || bundled?.[2] === 'm'
     const isFile = token === '--file' || bundled?.[2] === 'F'
     if (!isMessage && !isFile) {

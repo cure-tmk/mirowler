@@ -27,5 +27,5 @@ A basis for picking a verification command proportionate to the change.
 ## Notes
 
 - If you don't rerun everything locally, say explicitly what was left unverified.
-- Only run `wrangler deploy` (beyond dry-run), or an actual deploy, when explicitly requested.
-- Never write `pnpm -F @mirowler/worker deploy --dry-run`: pnpm does not forward `--dry-run` to the script and a real deploy runs. Use `deploy:dry-run`.
+- Only run `pnpm -F @mirowler/worker deploy:remote`, or any other real deploy, when explicitly requested.
+- No script is named `deploy` because pnpm reserves `pnpm deploy` as a built-in command, which shadows a package script of that name.

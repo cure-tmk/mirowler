@@ -22,5 +22,27 @@
         "useBlockStatements": "error"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["hono", "hono/**", "cheerio", "cheerio/**", "@cloudflare/**", "cloudflare:*", "wrangler"],
+                    "message": "packages/core stays runtime-free; put runtime code in apps/worker/src/adapters."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

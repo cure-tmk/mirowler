@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# If the edited file is a non-generated code/config file, run Biome's
-# autofix check scoped to that single file.
-# Only reports back to Claude (as a systemMessage) when Biome fails.
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -27,7 +23,7 @@ case "$ABS_PATH" in
 esac
 
 case "$ABS_PATH" in
-*.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json) ;;
+*.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.mts | *.cts | *.json | *.jsonc) ;;
 *) exit 0 ;;
 esac
 

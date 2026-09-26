@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# On TypeScript changes under packages/core or apps/worker, debounce and run
-# the typecheck of the affected package exactly once, per package.
-# Only reports back to Claude (as a systemMessage) when typecheck fails.
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

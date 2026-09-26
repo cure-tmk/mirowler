@@ -69,9 +69,12 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
 | `pnpm test` | Test all workspaces (turbo) |
 | `pnpm ai:verify:fast` | `check` + `typecheck` |
 | `pnpm ai:verify` | `check` + `typecheck` + `test` |
-| `pnpm deploy` | Deploy all workspaces (turbo) |
 | `pnpm -F @mirowler/core typecheck` / `test` | core only |
-| `pnpm -F @mirowler/worker typecheck` / `test` / `dev` / `deploy` / `migrate:local` | worker only |
+| `pnpm -F @mirowler/worker typecheck` / `test` / `dev` / `migrate:local` | worker only |
+| `pnpm -F @mirowler/worker deploy:dry-run` | Build the Worker bundle without deploying |
+| `pnpm -F @mirowler/worker migrate:remote` / `deploy:remote` | Apply remote D1 migrations / deploy the Worker (the Release workflow runs these) |
+
+No script is named `deploy`: pnpm reserves `pnpm deploy` as a built-in command.
 
 CI runs `pnpm ai:verify` and a worker deploy dry run (`pnpm -F @mirowler/worker deploy:dry-run`) on every pull request and on pushes to `main`.
 

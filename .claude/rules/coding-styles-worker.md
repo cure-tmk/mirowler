@@ -7,14 +7,15 @@
 ## Boundaries
 
 - `fetch` handler (Hono): the API and the `hono/jsx` admin UI, plus auth. Don't put domain logic directly in request handling.
-- `scheduled` handler: claims due monitors with a single conditional UPDATE, runs `runCheck` (core's pipeline), persists the result, and notifies. The evaluation logic itself belongs to core.
+- `scheduled` handler: claims due monitors (see the claim rule below), runs `runCheck` (core's pipeline), persists the result, and notifies. The evaluation logic itself belongs to core.
 - `adapters/`: implementations of core's ports (`Fetcher`, `Extractor`, `Notifier`, etc.). Aim for one file per port implementation (`httpFetcher.ts`, `htmlRewriterExtractor.ts`, `slackNotifier.ts`).
 - `db/`: one file per table. Write D1 prepared statements as plain SQL. Don't introduce an ORM.
 - `migrations/`: managed via `wrangler d1 migrations`. Don't skip numbers by hand.
 
 ## The claim rule
 
-- To avoid running the same monitor twice, "pick the due monitors" and "advance their next run time" happen in a single conditional UPDATE (e.g. `WHERE next_run_at <= ? AND ...`). Don't implement this as a SELECT followed by a separate UPDATE.
+- The claim itself is one conditional UPDATE per monitor that sets `running_since` only if the monitor is still due and not held by a live claim; a monitor with a live `running_since` is never run twice. Don't replace that guard with an unconditional write after a SELECT.
+- Further hardening of claim, finish, and scheduling is tracked in the issue "Claim, finish, and schedule robustness".
 
 ## Secrets
 
