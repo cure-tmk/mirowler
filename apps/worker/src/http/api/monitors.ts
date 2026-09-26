@@ -1,8 +1,9 @@
 import { monitorConfigSchema } from '@mirowler/core'
 import { Hono } from 'hono'
 import { assertPublicHttpsUrl } from '../../adapters/httpFetcher'
-import { insertMonitor, listMonitors, setMonitorEnabled } from '../../db/monitors'
+import { getMonitor, insertMonitor, listMonitors, setMonitorEnabled } from '../../db/monitors'
 import type { AppEnv } from '../../env'
+import { runNow } from '../../scheduled'
 
 const readConfig = async (req: Request): Promise<unknown> => {
   if (req.headers.get('content-type')?.includes('application/json')) {
@@ -35,4 +36,13 @@ export const monitorsApi = new Hono<AppEnv>()
     const ok = await setMonitorEnabled(c.env.DB, id, enabled, new Date().toISOString())
     return ok ? c.json({ id, enabled }) : c.json({ error: 'not found' }, 404)
   })
-  .post('/:id/run', (c) => c.json({ error: 'not implemented' }, 501))
+  .post('/:id/run', async (c) => {
+    const id = c.req.param('id')
+    const runId = await runNow(c.env, id)
+    if (runId) {
+      return c.json({ runId })
+    }
+    return (await getMonitor(c.env.DB, id))
+      ? c.json({ error: 'already running' }, 409)
+      : c.json({ error: 'not found' }, 404)
+  })

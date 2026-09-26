@@ -1,7 +1,10 @@
 import { Hono } from 'hono'
+import { listChannels } from '../../db/channels'
 import { getMonitor, listMonitors } from '../../db/monitors'
 import { listRunsByMonitor } from '../../db/runs'
 import type { AppEnv } from '../../env'
+import { runNow } from '../../scheduled'
+import { sendTestMessage } from '../../scheduled/retryNotifications'
 import { Layout } from './Layout'
 
 const exampleConfig = JSON.stringify(
@@ -20,7 +23,7 @@ const exampleConfig = JSON.stringify(
 
 export const pages = new Hono<AppEnv>()
   .get('/', async (c) => {
-    const monitors = await listMonitors(c.env.DB)
+    const [monitors, channels] = await Promise.all([listMonitors(c.env.DB), listChannels(c.env.DB)])
     return c.html(
       <Layout title="Monitors">
         <table>
@@ -41,6 +44,29 @@ export const pages = new Hono<AppEnv>()
                 <td>{m.source.url}</td>
                 <td>{m.enabled ? 'yes' : 'no'}</td>
                 <td>{m.nextRunAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <h2>Channels</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>ID</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {channels.map((ch) => (
+              <tr>
+                <td>{ch.displayName}</td>
+                <td>{ch.id}</td>
+                <td>
+                  <form method="post" action={`/channels/${ch.id}/test`}>
+                    <button type="submit">Send test</button>
+                  </form>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -69,6 +95,9 @@ export const pages = new Hono<AppEnv>()
     return c.html(
       <Layout title={monitor.name}>
         <p>{monitor.source.url}</p>
+        <form method="post" action={`/monitors/${monitor.id}/run`}>
+          <button type="submit">Run now</button>
+        </form>
         <table>
           <thead>
             <tr>
@@ -92,5 +121,33 @@ export const pages = new Hono<AppEnv>()
           </tbody>
         </table>
       </Layout>,
+    )
+  })
+  .post('/monitors/:id/run', async (c) => {
+    const id = c.req.param('id')
+    if (await runNow(c.env, id)) {
+      return c.redirect(`/monitors/${id}`)
+    }
+    return c.html(
+      <Layout title="Run now">
+        <p>The monitor is already running or does not exist</p>
+        <a href={`/monitors/${id}`}>Back</a>
+      </Layout>,
+      409,
+    )
+  })
+  .post('/channels/:id/test', async (c) => {
+    const result = await sendTestMessage(c.env, c.req.param('id'))
+    const [message, status] = !result
+      ? (['Channel not found', 404] as const)
+      : result.ok
+        ? (['Test message sent', 200] as const)
+        : ([`Failed to send: ${result.error}`, 502] as const)
+    return c.html(
+      <Layout title="Send test">
+        <p>{message}</p>
+        <a href="/">Back</a>
+      </Layout>,
+      status,
     )
   })

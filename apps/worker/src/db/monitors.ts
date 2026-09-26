@@ -64,6 +64,16 @@ export const claimDue = async (db: D1Database, now: string, staleBefore: string,
   return claimed
 }
 
+export const claimById = async (db: D1Database, id: string, now: string, staleBefore: string) => {
+  const row = await db
+    .prepare(
+      'UPDATE monitors SET running_since = ?1 WHERE id = ?2 AND (running_since IS NULL OR running_since < ?3) RETURNING *',
+    )
+    .bind(now, id, staleBefore)
+    .first<MonitorRow>()
+  return row ? toMonitor(row) : null
+}
+
 export const finishRun = async (db: D1Database, id: string, nextRunAt: string, lastValidRunId?: string) => {
   await db
     .prepare(
