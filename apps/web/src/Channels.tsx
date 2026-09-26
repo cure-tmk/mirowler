@@ -11,7 +11,7 @@ const channelApi = client.api.channels[':id']
 
 type ChannelInput = { displayName: string; secretName: string }
 
-const fetchChannels = () => parseResponse(client.api.channels.$get())
+export const fetchChannels = () => parseResponse(client.api.channels.$get())
 
 type Channel = Awaited<ReturnType<typeof fetchChannels>>[number]
 
