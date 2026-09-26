@@ -1,4 +1,5 @@
 import {
+  decideEvent,
   type EvaluatorConfig,
   type ExtractorConfig,
   evaluateRule,
@@ -21,10 +22,14 @@ const cartButton: ExtractorConfig = {
 }
 const canAddToCart: EvaluatorConfig = { type: 'rule', field: 'text', op: 'contains', value: 'カートに入れる' }
 
-const monitor = (extractor: ExtractorConfig, evaluator: EvaluatorConfig): Monitor => ({
+const monitor = (
+  extractor: ExtractorConfig,
+  evaluator: EvaluatorConfig,
+  schedule: Monitor['schedule'] = { type: 'interval', minutes: 60 },
+): Monitor => ({
   id: 'm1',
   name: 'target-a',
-  schedule: { type: 'interval', minutes: 60 },
+  schedule,
   source: { type: 'http', url: 'https://example.com/item' },
   extractor,
   evaluator,
@@ -43,15 +48,17 @@ const check = (
     extractor = cartButton,
     evaluator = canAddToCart,
     previousValid = null,
+    schedule,
   }: {
     status?: number
     extractor?: ExtractorConfig
     evaluator?: EvaluatorConfig
     previousValid?: Observation | null
+    schedule?: Monitor['schedule']
   } = {},
 ) =>
   runCheck({
-    monitor: monitor(extractor, evaluator),
+    monitor: monitor(extractor, evaluator, schedule),
     previousValid,
     runId: 'r1',
     now: '2026-01-01T00:00:00.000Z',
@@ -155,5 +162,57 @@ describe('price on target-a fixtures', () => {
     const { observation } = await check(html, { extractor: price, evaluator: below })
     expect(observation.value).toEqual({ jpy: null })
     expect(observation.state).toBe('unknown')
+  })
+})
+
+describe('price drop monitor on target-a fixtures', () => {
+  const options = {
+    extractor: { type: 'css_text', selector: '.price_box_0 p.price_', parse: 'jpy' },
+    evaluator: { type: 'change', field: 'jpy', op: 'decreased_by_percent', value: 10 },
+    schedule: { type: 'daily', time: '09:00', timezone: 'Asia/Tokyo' },
+  } as const
+  const priced = (text: string) => outOfStock.replace('123,456円', text)
+  const baseline = () => check(outOfStock, options)
+
+  it('records the first price as a baseline without an event', async () => {
+    const { observation, event } = await baseline()
+    expect(observation).toMatchObject({ value: { jpy: 123456 }, state: 'not_matched' })
+    expect(event).toBeNull()
+  })
+
+  it('emits exactly one entered event on a drop of 10% or more', async () => {
+    const first = await baseline()
+    const second = await check(priced('111,110円'), { ...options, previousValid: first.observation })
+    expect(second.observation.state).toBe('matched')
+    expect(second.event).toMatchObject({ kind: 'entered' })
+    const third = await check(priced('111,110円'), { ...options, previousValid: second.observation })
+    expect(third.event).toBeNull()
+  })
+
+  it('ignores a 5% drop', async () => {
+    const first = await baseline()
+    const { observation, event } = await check(priced('117,283円'), { ...options, previousValid: first.observation })
+    expect(observation.state).toBe('not_matched')
+    expect(event).toBeNull()
+  })
+
+  it('a missing price is unknown and keeps the baseline', async () => {
+    const first = await baseline()
+    const missing = outOfStock.replace(/<p class="price_">.*?<\/p>/, '')
+    const { observation, event } = await check(missing, { ...options, previousValid: first.observation })
+    expect(observation.state).toBe('unknown')
+    expect(event).toBeNull()
+    expect(
+      decideEvent({
+        monitorId: 'm1',
+        runId: 'r2',
+        previousValid: first.observation,
+        current: observation,
+        trigger: { type: 'on_enter' },
+        now: '2026-01-01T00:00:00.000Z',
+      }),
+    ).toBeNull()
+    const next = await check(priced('111,110円'), { ...options, previousValid: first.observation })
+    expect(next.event).toMatchObject({ kind: 'entered' })
   })
 })
