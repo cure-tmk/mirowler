@@ -1,7 +1,5 @@
 import type { Schedule } from './monitor'
 
-export const minIntervalMinutes = 1
-
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
 const MAX_BACKOFF_MINUTES = 6 * 60
@@ -46,7 +44,7 @@ export function computeNextRunAt(schedule: Schedule, from: Date): string {
   }
 }
 
-/** Next run after `failures` consecutive HTTP 429 or 5xx responses (including this one). Interval schedules back off to `min(interval * 2^failures, 6h)`, never shorter than the interval itself; daily schedules keep their next occurrence. */
+/** Next run after `failures` consecutive throttled failures (including this one). Interval schedules back off to `min(interval * 2^failures, 6h)`, never shorter than the interval itself; daily schedules keep their next occurrence. */
 export function nextRunAfterFailure({
   schedule,
   failures,

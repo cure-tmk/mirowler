@@ -205,6 +205,7 @@ describe('price drop monitor on target-a fixtures', () => {
     expect(
       decideEvent({
         monitorId: 'm1',
+        monitorName: 'm1',
         runId: 'r2',
         previousValid: first.observation,
         current: observation,

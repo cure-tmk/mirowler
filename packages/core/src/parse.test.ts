@@ -13,6 +13,21 @@ describe('parseJpy', () => {
     expect(parseJpy('1,000円(税抜)')).toBe(1000)
   })
 
+  it('takes only the first amount', () => {
+    expect(parseJpy('¥1,980 ¥1,580')).toBe(1980)
+  })
+
+  it('prefers the amount next to a yen mark over other numbers', () => {
+    expect(parseJpy('残り3点 ¥1,980')).toBe(1980)
+    expect(parseJpy('2点で3,000円')).toBe(3000)
+  })
+
+  it('rejects signed, decimal, exponent, and hex notations', () => {
+    for (const text of ['0x1F', '1e3', '-500円', '1.980円']) {
+      expect(parseJpy(text)).toBeNull()
+    }
+  })
+
   it('returns null when unparsable', () => {
     expect(parseJpy('sold out')).toBeNull()
     expect(parseJpy('')).toBeNull()

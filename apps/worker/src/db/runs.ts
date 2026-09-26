@@ -13,7 +13,6 @@ type RunRow = {
   value_json: string | null
   state: MatchState | null
   reason: string | null
-  content_hash: string | null
   error: string | null
 }
 
@@ -49,14 +48,13 @@ export const insertRun = async (
 export const completeRun = async (db: D1Database, observation: Observation, finishedAt: string) => {
   await db
     .prepare(
-      `UPDATE runs SET finished_at = ?, status = 'done', value_json = ?, state = ?, reason = ?, content_hash = ?, error = NULL WHERE run_id = ?`,
+      `UPDATE runs SET finished_at = ?, status = 'done', value_json = ?, state = ?, reason = ?, error = NULL WHERE run_id = ?`,
     )
     .bind(
       finishedAt,
       observation.value ? JSON.stringify(observation.value) : null,
       observation.state,
       observation.reason ?? null,
-      observation.contentHash ?? null,
       observation.runId,
     )
     .run()
@@ -130,7 +128,6 @@ export const getLastValid = async (db: D1Database, monitorId: string): Promise<O
     value: parseValue(r.value_json),
     state: r.state,
     ...(r.reason ? { reason: r.reason } : {}),
-    ...(r.content_hash ? { contentHash: r.content_hash } : {}),
   }
 }
 
