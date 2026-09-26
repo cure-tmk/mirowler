@@ -10,6 +10,9 @@ export const Layout = ({ title, children }: { title: string; children: Child }) 
     <body>
       <header>
         <a href="/">mirowler</a>
+        <nav>
+          <a href="/">Monitors</a> | <a href="/channels">Channels</a>
+        </nav>
       </header>
       <main>
         <h1>{title}</h1>
