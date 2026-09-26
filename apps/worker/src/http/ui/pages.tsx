@@ -2,8 +2,7 @@ import { monitorConfigSchema } from '@mirowler/core'
 import { Hono } from 'hono'
 import { type Channel, insertChannel, listChannels } from '../../db/channels'
 import { getMonitor, listMonitors } from '../../db/monitors'
-import { listNotificationsByMonitor } from '../../db/notifications'
-import { listRunsByMonitor } from '../../db/runs'
+import { listHistoryByMonitor } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
 import { sendTestMessage } from '../../scheduled/retryNotifications'
@@ -132,10 +131,7 @@ export const pages = new Hono<AppEnv>()
     if (!monitor) {
       return c.notFound()
     }
-    const [runs, notifications] = await Promise.all([
-      listRunsByMonitor(c.env.DB, monitor.id),
-      listNotificationsByMonitor(c.env.DB, monitor.id),
-    ])
+    const history = await listHistoryByMonitor(c.env.DB, monitor.id)
     return c.html(
       <Layout title={monitor.name}>
         <p>{monitor.source.url}</p>
@@ -154,55 +150,61 @@ export const pages = new Hono<AppEnv>()
           <br />
           <button type="submit">Save</button>
         </form>
-        <h2>Runs</h2>
+        <h2>History</h2>
         <table>
           <thead>
             <tr>
               <th>Scheduled at</th>
+              <th>Started at</th>
+              <th>Finished at</th>
               <th>Status</th>
               <th>State</th>
               <th>Value</th>
               <th>Reason</th>
+              <th>Error</th>
+              <th>Config version</th>
             </tr>
           </thead>
-          <tbody>
-            {runs.map((r) => (
+          {history.map((r) => (
+            <tbody>
               <tr>
                 <td>{r.scheduledAt}</td>
+                <td>{r.startedAt}</td>
+                <td>{r.finishedAt}</td>
                 <td>{r.status}</td>
                 <td>{r.state}</td>
                 <td>{r.value ? JSON.stringify(r.value) : ''}</td>
-                <td>{r.error ?? r.reason}</td>
+                <td>{r.reason}</td>
+                <td>{r.error}</td>
+                <td>{r.configVersion}</td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <h2>Notifications</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Occurred at</th>
-              <th>Event</th>
-              <th>Channel</th>
-              <th>Status</th>
-              <th>Attempts</th>
-              <th>Last error</th>
-              <th>Sent at</th>
-            </tr>
-          </thead>
-          <tbody>
-            {notifications.map((n) => (
-              <tr>
-                <td>{n.occurredAt}</td>
-                <td>{n.eventId}</td>
-                <td>{n.channel}</td>
-                <td>{n.status === 'failed' ? <strong>FAILED</strong> : n.status}</td>
-                <td>{n.attempts}</td>
-                <td>{n.lastError}</td>
-                <td>{n.sentAt}</td>
-              </tr>
-            ))}
-          </tbody>
+              {r.events.map((e) => (
+                <tr>
+                  <td colspan={9}>
+                    Event {e.kind}: {e.summary}
+                    <table>
+                      <tr>
+                        <th>Channel</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Last error</th>
+                        <th>Sent at</th>
+                      </tr>
+                      {e.notifications.map((n) => (
+                        <tr>
+                          <td>{n.channel}</td>
+                          <td>{n.status === 'failed' ? <strong>FAILED</strong> : n.status}</td>
+                          <td>{n.attempts}</td>
+                          <td>{n.lastError}</td>
+                          <td>{n.sentAt}</td>
+                        </tr>
+                      ))}
+                    </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
         </table>
       </Layout>,
     )
