@@ -2,6 +2,7 @@ import type { EventKind, MonitorEvent, Observation, ObservedValue, TriggerConfig
 
 type DecideInput = {
   monitorId: string
+  monitorName: string
   runId: string
   previousValid: Observation | null
   current: Observation
@@ -17,9 +18,10 @@ function sameValue(a: ObservedValue | null, b: ObservedValue | null): boolean {
   return [...keys].every((k) => a[k] === b[k])
 }
 
-/** Decides the notification event from the previous valid observation and the current one. Returns null for the baseline (first valid observation) and for any transition involving `unknown`. */
+/** Returns null for the baseline (first valid observation) and for any transition involving `unknown`. */
 export function decideEvent({
   monitorId,
+  monitorName,
   runId,
   previousValid,
   current,
@@ -49,7 +51,7 @@ export function decideEvent({
     runId,
     monitorId,
     kind,
-    summary: `${kind}: ${JSON.stringify(current.value)}`,
+    summary: `${monitorName}: ${kind} ${JSON.stringify(current.value)}`,
     occurredAt: now,
   }
 }

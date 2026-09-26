@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { monitorConfigSchema } from './monitor'
-import { computeNextRunAt, minIntervalMinutes, nextRunAfterFailure } from './schedule'
+import { computeNextRunAt, nextRunAfterFailure } from './schedule'
 
 const daily = (time: string, timezone: string, from: string) =>
   computeNextRunAt({ type: 'daily', time, timezone }, new Date(from))
@@ -46,12 +45,5 @@ describe('nextRunAfterFailure', () => {
   it('keeps the next daily occurrence', () => {
     const schedule = { type: 'daily', time: '09:00', timezone: 'Asia/Tokyo' } as const
     expect(nextRunAfterFailure({ schedule, failures: 3, now })).toBe(computeNextRunAt(schedule, now))
-  })
-})
-
-describe('schedule schema', () => {
-  it('rejects an interval below the minimum', () => {
-    const result = monitorConfigSchema.shape.schedule.safeParse({ type: 'interval', minutes: minIntervalMinutes - 1 })
-    expect(result.success).toBe(false)
   })
 })

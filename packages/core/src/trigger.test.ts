@@ -12,13 +12,22 @@ const obs = (state: MatchState, value: ObservedValue | null = { jpy: 1 }): Obser
 })
 
 const decide = (previousValid: Observation | null, current: Observation, type: TriggerConfig['type'] = 'on_enter') =>
-  decideEvent({ monitorId: 'm', runId: 'run1', previousValid, current, trigger: { type }, now: 'now' })
+  decideEvent({
+    monitorId: 'm',
+    monitorName: 'Shop',
+    runId: 'run1',
+    previousValid,
+    current,
+    trigger: { type },
+    now: 'now',
+  })
 
 describe('decideEvent', () => {
   it('on_enter fires only on not_matched -> matched', () => {
     const e = decide(obs('not_matched'), obs('matched'))
     expect(e?.kind).toBe('entered')
     expect(e?.id).toBe('run1:entered')
+    expect(e?.summary).toBe('Shop: entered {"jpy":1}')
     expect(decide(obs('matched'), obs('matched'))).toBeNull()
     expect(decide(obs('matched'), obs('not_matched'))).toBeNull()
   })

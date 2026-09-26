@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { minIntervalMinutes } from './schedule'
 
 const isValidTimeZone = (tz: string): boolean => {
   try {
@@ -11,7 +10,7 @@ const isValidTimeZone = (tz: string): boolean => {
 }
 
 export const scheduleSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('interval'), minutes: z.number().int().min(minIntervalMinutes) }),
+  z.object({ type: z.literal('interval'), minutes: z.number().int().min(1).max(525600) }),
   z.object({
     type: z.literal('daily'),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
@@ -19,7 +18,7 @@ export const scheduleSchema = z.discriminatedUnion('type', [
   }),
 ])
 
-export const sourceSchema = z.object({ type: z.literal('http'), url: z.url() })
+export const sourceSchema = z.object({ type: z.literal('http'), url: z.url({ protocol: /^https$/ }) })
 
 const parseModeSchema = z.enum(['text', 'jpy'])
 
@@ -45,7 +44,7 @@ export const evaluatorSchema = z
       type: z.literal('change'),
       field: z.string().min(1),
       op: z.enum(['changed', 'decreased', 'decreased_by_percent']),
-      value: z.number().positive().optional(),
+      value: z.number().positive().max(100).optional(),
     }),
   ])
   .refine(
@@ -61,16 +60,24 @@ export const evaluatorSchema = z
 
 export const triggerSchema = z.object({ type: z.enum(['on_enter', 'on_value_change']) })
 
-/** Monitor configuration accepted by the admin API and stored as-is in the D1 `config_json` column. */
-export const monitorConfigSchema = z.object({
-  name: z.string().min(1),
-  schedule: scheduleSchema,
-  source: sourceSchema,
-  extractor: extractorSchema,
-  evaluator: evaluatorSchema,
-  trigger: triggerSchema,
-  channelIds: z.array(z.string().min(1)).min(1),
-})
+/** Monitor configuration accepted by the admin API and stored as-is. */
+export const monitorConfigSchema = z
+  .object({
+    name: z.string().min(1),
+    schedule: scheduleSchema,
+    source: sourceSchema,
+    extractor: extractorSchema,
+    evaluator: evaluatorSchema,
+    trigger: triggerSchema,
+    channelIds: z
+      .array(z.string().min(1))
+      .min(1)
+      .refine((ids) => new Set(ids).size === ids.length, 'must be unique'),
+  })
+  .refine((c) => c.evaluator.field === c.extractor.parse, {
+    message: 'field must match the extractor parse mode',
+    path: ['evaluator', 'field'],
+  })
 
 export type Schedule = z.infer<typeof scheduleSchema>
 export type Source = z.infer<typeof sourceSchema>
@@ -79,14 +86,14 @@ export type EvaluatorConfig = z.infer<typeof evaluatorSchema>
 export type TriggerConfig = z.infer<typeof triggerSchema>
 export type MonitorConfig = z.infer<typeof monitorConfigSchema>
 
-/** Persisted Monitor, mirroring a row of the D1 `monitors` table. */
+/** A stored monitor: its config plus scheduling state. */
 export type Monitor = MonitorConfig & {
   id: string
   enabled: boolean
   configVersion: number
   /** UTC ISO 8601 */
   nextRunAt: string
-  /** Consecutive runs that ended in HTTP 429 or 5xx */
+  /** Consecutive throttled failures */
   failureCount: number
 }
 
@@ -105,14 +112,11 @@ export type Observation = {
   reason?: string
   /** Set when the fetch returned a non-2xx status */
   httpStatus?: number
-  contentHash?: string
 }
 
 export type Evaluation = {
   state: MatchState
   reason?: string
-  /** 0..1, reported by semantic evaluators; omitted by deterministic rules */
-  confidence?: number
 }
 
 export type EventKind = 'entered' | 'value_changed'

@@ -38,13 +38,14 @@ async function observe({
   }
 }
 
-/** fetch -> extract -> evaluate -> decideEvent. Expected failures never throw; they become an observation with state `unknown`. */
+/** Never throws; adapter failures become an observation with state `unknown`. */
 export async function runCheck(
   input: RunCheckInput,
 ): Promise<{ observation: Observation; event: MonitorEvent | null }> {
   const observation = await observe(input)
   const event = decideEvent({
     monitorId: input.monitor.id,
+    monitorName: input.monitor.name,
     runId: input.runId,
     previousValid: input.previousValid,
     current: observation,
