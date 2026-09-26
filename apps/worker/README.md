@@ -25,7 +25,7 @@ Once a custom domain is added, put an Access application in front of it and remo
 ## Monitor create form
 
 The top page posts structured fields to the HTML route `POST /monitors`, which builds a config from them, validates it with the shared `monitorConfigSchema` and re-renders the form with each issue next to its field (400) or redirects to the new monitor.
-A separate route keeps HTML rendering out of `/api/monitors`, which stays JSON for API clients. Every field is always rendered without JavaScript; fields that do not apply to the chosen schedule, extractor or evaluator type are ignored.
+`/api/monitors` serves JSON for API clients; the HTML form routes are `/monitors` (create) and `/monitors/:id/edit` (edit). Every field is always rendered without JavaScript; fields that do not apply to the chosen schedule, extractor or evaluator type are ignored.
 
 ## Monitor edit
 
@@ -59,18 +59,8 @@ A price that cannot be found or parsed yields `unknown`, which never notifies an
 
 ## Run locally
 
-```sh
-pnpm -F @mirowler/worker migrate:local
-pnpm dev
-curl 'http://localhost:8787/__scheduled?cron=*+*+*+*+*'
-```
-
-`dev` runs `wrangler dev --test-scheduled`, which exposes `/__scheduled` to trigger the cron handler. Put secrets (`ADMIN_BASIC_AUTH=user:pass`, Slack webhook URLs, etc.) in `apps/worker/.dev.vars`. Full walkthrough: root [README](../../README.md#setup).
+See the root [README Setup](../../README.md#setup).
 
 ## Checks
 
-```sh
-pnpm -F @mirowler/worker typecheck
-pnpm -F @mirowler/worker test
-pnpm -F @mirowler/worker exec wrangler deploy --dry-run
-```
+See [verification.md](../../.claude/rules/verification.md).

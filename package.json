@@ -14,7 +14,6 @@
     "fix": "biome check --write --diagnostic-level=error",
     "format": "biome format --write",
     "dev": "pnpm -F @mirowler/worker dev",
-    "deploy": "turbo run deploy",
     "ai:verify": "pnpm check && pnpm typecheck && pnpm test",
     "ai:verify:fast": "pnpm check && pnpm typecheck"
   },

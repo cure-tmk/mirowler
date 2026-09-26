@@ -21,7 +21,7 @@ If a sentence would become false after a refactor of the implementation, it does
 
 - A PR description is readable without the diff and does not duplicate it
 - Write the issue before implementing and do not append implementation detail afterwards; that goes to the PR
-- Decisions that outlive the PR go to `docs/` or `.claude/rules/`, and the PR links to them
+- Decisions that outlive the PR go to the READMEs or `.claude/rules/`, and the PR links to them
 - Keep "why not the alternative" when it exists; cut what and how
 - Fill every template section; write "None" instead of removing a section
 

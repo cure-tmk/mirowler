@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 
-# On `git commit` invoked via the Bash tool, run the commit message through
-# commitlint to block Conventional Commits violations before the commit happens,
-# and separately check for a disallowed body.
-# Inputs we can't judge (message-less --amend, extraction failure, missing CLI)
-# are passed through.
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

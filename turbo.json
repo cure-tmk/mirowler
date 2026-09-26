@@ -6,10 +6,6 @@
     },
     "test": {
       "dependsOn": ["^typecheck"]
-    },
-    "deploy": {
-      "dependsOn": ["typecheck", "test", "^typecheck", "^test"],
-      "cache": false
     }
   }
 }

@@ -16,7 +16,6 @@ This rule is loaded unconditionally as the shared coding style. See `coding-styl
 ## Biome
 
 - Formatting and most linting is Biome's job (`pnpm check` / `pnpm fix`). Don't expand manual style debates into territory Biome already automates.
-- The overrides in `biome.json` (`noExplicitAny` off, `noNonNullAssertion` off, etc.) are an existing tolerance; don't tighten them in individual files.
 
 ## TypeScript
 

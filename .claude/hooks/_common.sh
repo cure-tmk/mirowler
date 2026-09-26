@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-# Shared helpers for Claude Code hooks.
-# Extracts file_path from hook input JSON, resolves it to an absolute path,
-# and builds the systemMessage JSON returned to Claude.
-
 project_dir() {
 	printf '%s\n' "${CLAUDE_PROJECT_DIR:-$(pwd)}"
 }

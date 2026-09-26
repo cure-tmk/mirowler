@@ -8,7 +8,7 @@
     "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "test": "vitest run",
-    "deploy": "wrangler deploy",
+    "deploy:remote": "wrangler deploy",
     "deploy:dry-run": "wrangler deploy --dry-run",
     "migrate:local": "wrangler d1 migrations apply mirowler --local",
     "migrate:remote": "wrangler d1 migrations apply mirowler --remote"

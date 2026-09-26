@@ -1,64 +1,30 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 
-import { applyD1Migrations, createScheduledController, type D1Migration } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
-import type { MonitorConfig } from '@mirowler/core'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { insertMonitor } from '../src/db/monitors'
-import { scheduled } from '../src/scheduled'
-
-declare global {
-  namespace Cloudflare {
-    interface Env {
-      TEST_MIGRATIONS: D1Migration[]
-    }
-  }
-}
+import { baseConfig as config, monitorRow, resetTables, tick } from './helpers'
 
 const T0 = new Date(Date.now() - 2 * 3_600_000).toISOString()
 const T1 = new Date(Date.now() - 3_600_000).toISOString()
 const T2 = new Date(Date.now() - 30 * 60_000).toISOString()
 
-const config: MonitorConfig = {
-  name: 'stock',
-  schedule: { type: 'interval', minutes: 60 },
-  source: { type: 'http', url: 'https://example.com/item' },
-  extractor: { type: 'css_text', selector: '#stock', parse: 'text' },
-  evaluator: { type: 'rule', field: 'text', op: 'contains', value: 'In stock' },
-  trigger: { type: 'on_enter' },
-  channelIds: ['ch-a', 'ch-b'],
-}
-
 const servePage = (stock: string, status = 200) =>
   vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(`<p id="stock">${stock}</p>`, { status }))
-
-const tick = () => scheduled(createScheduledController(), env, {} as ExecutionContext)
 
 const setMonitor = (id: string, sql: string, ...values: unknown[]) =>
   env.DB.prepare(`UPDATE monitors SET ${sql} WHERE id = ?`)
     .bind(...values, id)
     .run()
 
-const monitorRow = (id: string) =>
-  env.DB.prepare('SELECT next_run_at, running_since, last_valid_run_id, failure_count FROM monitors WHERE id = ?')
-    .bind(id)
-    .first<{
-      next_run_at: string
-      running_since: string | null
-      last_valid_run_id: string | null
-      failure_count: number
-    }>()
-
 const count = async (table: 'runs' | 'events' | 'notifications') =>
   (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<number>('n')) ?? 0
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 
-beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS))
-
 beforeEach(async () => {
   vi.restoreAllMocks()
-  await env.DB.batch(['notifications', 'events', 'runs', 'monitors'].map((t) => env.DB.prepare(`DELETE FROM ${t}`)))
+  await resetTables()
 })
 
 describe('scheduled', () => {
