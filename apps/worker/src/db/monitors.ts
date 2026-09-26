@@ -6,6 +6,7 @@ type MonitorRow = {
   config_json: string
   config_version: number
   next_run_at: string
+  failure_count: number
 }
 
 const toMonitor = (row: MonitorRow): Monitor => ({
@@ -14,6 +15,7 @@ const toMonitor = (row: MonitorRow): Monitor => ({
   enabled: row.enabled === 1,
   configVersion: row.config_version,
   nextRunAt: row.next_run_at,
+  failureCount: row.failure_count,
 })
 
 export const listMonitors = async (db: D1Database): Promise<Monitor[]> => {
@@ -85,21 +87,21 @@ export const claimById = async (db: D1Database, id: string, now: string, staleBe
   return row ? toMonitor(row) : null
 }
 
-/** Leaves the schedule and baseline alone when the config was edited during the run. */
+/** Leaves the schedule, failure count and baseline alone when the config was edited during the run. */
 export const finishRun = async (
   db: D1Database,
   id: string,
   configVersion: number,
-  nextRunAt: string,
-  lastValidRunId?: string,
+  { nextRunAt, failureCount, lastValidRunId }: { nextRunAt: string; failureCount: number; lastValidRunId?: string },
 ) => {
   await db
     .prepare(
       `UPDATE monitors SET running_since = NULL,
         next_run_at = CASE WHEN config_version = ?1 THEN ?2 ELSE next_run_at END,
-        last_valid_run_id = CASE WHEN config_version = ?1 THEN COALESCE(?3, last_valid_run_id) ELSE last_valid_run_id END
-      WHERE id = ?4`,
+        failure_count = CASE WHEN config_version = ?1 THEN ?3 ELSE failure_count END,
+        last_valid_run_id = CASE WHEN config_version = ?1 THEN COALESCE(?4, last_valid_run_id) ELSE last_valid_run_id END
+      WHERE id = ?5`,
     )
-    .bind(configVersion, nextRunAt, lastValidRunId ?? null, id)
+    .bind(configVersion, nextRunAt, failureCount, lastValidRunId ?? null, id)
     .run()
 }

@@ -1,4 +1,12 @@
-import { computeNextRunAt, evaluateRule, type Monitor, makeRunId, runCheck } from '@mirowler/core'
+import {
+  computeNextRunAt,
+  evaluateRule,
+  type Monitor,
+  makeRunId,
+  nextRunAfterFailure,
+  type Observation,
+  runCheck,
+} from '@mirowler/core'
 import { htmlRewriterExtractor } from '../adapters/htmlRewriterExtractor'
 import { httpFetcher } from '../adapters/httpFetcher'
 import { insertEvent } from '../db/events'
@@ -14,10 +22,24 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_MS).toISOString()
 
+const isThrottled = (o: Observation) => o.httpStatus !== undefined && (o.httpStatus === 429 || o.httpStatus >= 500)
+
+const nextSchedule = (monitor: Monitor, now: Date, manual: boolean, throttled: boolean) => {
+  if (manual) {
+    return { nextRunAt: monitor.nextRunAt, failureCount: monitor.failureCount }
+  }
+  if (!throttled) {
+    return { nextRunAt: computeNextRunAt(monitor.schedule, now), failureCount: 0 }
+  }
+  const failureCount = monitor.failureCount + 1
+  return { nextRunAt: nextRunAfterFailure({ schedule: monitor.schedule, failures: failureCount, now }), failureCount }
+}
+
 const runMonitor = async (env: Bindings, monitor: Monitor, now: Date, manual = false) => {
   const scheduledAt = manual ? now.toISOString() : monitor.nextRunAt
   const runId = makeRunId(monitor.id, scheduledAt)
   let lastValidRunId: string | undefined
+  let throttled = false
   try {
     await insertRun(env.DB, {
       runId,
@@ -37,6 +59,7 @@ const runMonitor = async (env: Bindings, monitor: Monitor, now: Date, manual = f
       evaluator: evaluateRule,
     })
     await completeRun(env.DB, observation, new Date().toISOString())
+    throttled = isThrottled(observation)
     if (manual) {
       return runId
     }
@@ -57,8 +80,10 @@ const runMonitor = async (env: Bindings, monitor: Monitor, now: Date, manual = f
   } catch (e) {
     await failRun(env.DB, runId, String(e), new Date().toISOString())
   } finally {
-    const nextRunAt = manual ? monitor.nextRunAt : computeNextRunAt(monitor.schedule, now)
-    await finishRun(env.DB, monitor.id, monitor.configVersion, nextRunAt, lastValidRunId)
+    await finishRun(env.DB, monitor.id, monitor.configVersion, {
+      ...nextSchedule(monitor, now, manual, throttled),
+      lastValidRunId,
+    })
   }
   return runId
 }
@@ -70,10 +95,26 @@ export const runNow = async (env: Bindings, monitorId: string): Promise<string |
   return monitor && runMonitor(env, monitor, now, true)
 }
 
+/** Within one tick, runs monitors sharing a URL host one after another; different hosts run concurrently. */
+export const runByHost = async (monitors: Monitor[], run: (m: Monitor) => Promise<unknown>) => {
+  const byHost = new Map<string, Monitor[]>()
+  for (const m of monitors) {
+    const host = new URL(m.source.url).host
+    byHost.set(host, [...(byHost.get(host) ?? []), m])
+  }
+  await Promise.allSettled(
+    [...byHost.values()].map(async (group) => {
+      for (const m of group) {
+        await run(m).catch(() => {})
+      }
+    }),
+  )
+}
+
 export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (_controller, env) => {
   const now = new Date()
   const monitors = await claimDue(env.DB, now.toISOString(), staleBefore(now), CLAIM_LIMIT)
-  await Promise.allSettled(monitors.map((m) => runMonitor(env, m, now)))
+  await runByHost(monitors, (m) => runMonitor(env, m, now))
   await retryNotifications(env)
   await deleteRunsBefore(env.DB, new Date(now.getTime() - env.RETENTION_DAYS * DAY_MS).toISOString())
 }

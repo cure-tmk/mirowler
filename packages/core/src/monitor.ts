@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { minIntervalMinutes } from './schedule'
 
 const isValidTimeZone = (tz: string): boolean => {
   try {
@@ -10,7 +11,7 @@ const isValidTimeZone = (tz: string): boolean => {
 }
 
 export const scheduleSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('interval'), minutes: z.number().int().min(1) }),
+  z.object({ type: z.literal('interval'), minutes: z.number().int().min(minIntervalMinutes) }),
   z.object({
     type: z.literal('daily'),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
@@ -85,6 +86,8 @@ export type Monitor = MonitorConfig & {
   configVersion: number
   /** UTC ISO 8601 */
   nextRunAt: string
+  /** Consecutive runs that ended in HTTP 429 or 5xx */
+  failureCount: number
 }
 
 export type MatchState = 'matched' | 'not_matched' | 'unknown'
@@ -100,6 +103,8 @@ export type Observation = {
   value: ObservedValue | null
   state: MatchState
   reason?: string
+  /** Set when the fetch returned a non-2xx status */
+  httpStatus?: number
   contentHash?: string
 }
 

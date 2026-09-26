@@ -17,6 +17,7 @@ declare global {
 
 const T0 = new Date(Date.now() - 2 * 3_600_000).toISOString()
 const T1 = new Date(Date.now() - 3_600_000).toISOString()
+const T2 = new Date(Date.now() - 30 * 60_000).toISOString()
 
 const config: MonitorConfig = {
   name: 'stock',
@@ -39,9 +40,14 @@ const setMonitor = (id: string, sql: string, ...values: unknown[]) =>
     .run()
 
 const monitorRow = (id: string) =>
-  env.DB.prepare('SELECT next_run_at, running_since, last_valid_run_id FROM monitors WHERE id = ?')
+  env.DB.prepare('SELECT next_run_at, running_since, last_valid_run_id, failure_count FROM monitors WHERE id = ?')
     .bind(id)
-    .first<{ next_run_at: string; running_since: string | null; last_valid_run_id: string | null }>()
+    .first<{
+      next_run_at: string
+      running_since: string | null
+      last_valid_run_id: string | null
+      failure_count: number
+    }>()
 
 const count = async (table: 'runs' | 'events' | 'notifications') =>
   (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<number>('n')) ?? 0
@@ -161,5 +167,50 @@ describe('scheduled', () => {
       { run_id: 'recent', event_id: 'ev-recent', channel_id: 'ch-a' },
     ])
     expect(await count('notifications')).toBe(2)
+  })
+
+  it('backs off on consecutive 5xx and resets on success', async () => {
+    const id = await insertMonitor(env.DB, config, T0)
+    const minutesFromNow = async () => (Date.parse((await monitorRow(id))!.next_run_at) - Date.now()) / 60_000
+
+    servePage('', 500)
+    await tick()
+    await setMonitor(id, 'next_run_at = ?', T1)
+    await tick()
+
+    expect(await monitorRow(id)).toMatchObject({ failure_count: 2 })
+    expect(await minutesFromNow()).toBeGreaterThan(200)
+
+    await setMonitor(id, 'next_run_at = ?', T2)
+    servePage('In stock')
+    await tick()
+
+    expect(await monitorRow(id)).toMatchObject({ failure_count: 0 })
+    expect(await minutesFromNow()).toBeLessThanOrEqual(60)
+  })
+
+  it('fetches monitors on the same host one after another', async () => {
+    const urls = ['https://example.com/a', 'https://example.com/b', 'https://example.org/c']
+    for (const url of urls) {
+      await insertMonitor(env.DB, { ...config, source: { type: 'http', url } }, T0)
+    }
+    const inFlight = new Map<string, number>()
+    let maxSameHost = 0
+    const fetched: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      const n = (inFlight.get(url.host) ?? 0) + 1
+      inFlight.set(url.host, n)
+      maxSameHost = Math.max(maxSameHost, n)
+      await new Promise((r) => setTimeout(r, 20))
+      inFlight.set(url.host, n - 1)
+      fetched.push(url.toString())
+      return new Response('<p id="stock">In stock</p>')
+    })
+
+    await tick()
+
+    expect(fetched.sort()).toEqual(urls)
+    expect(maxSameHost).toBe(1)
   })
 })

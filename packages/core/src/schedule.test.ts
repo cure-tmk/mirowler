@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { computeNextRunAt } from './schedule'
+import { monitorConfigSchema } from './monitor'
+import { computeNextRunAt, minIntervalMinutes, nextRunAfterFailure } from './schedule'
 
 const daily = (time: string, timezone: string, from: string) =>
   computeNextRunAt({ type: 'daily', time, timezone }, new Date(from))
@@ -23,5 +24,34 @@ describe('computeNextRunAt', () => {
 
   it('takes the first occurrence of an ambiguous local time (fall back)', () => {
     expect(daily('01:30', 'America/New_York', '2026-10-31T12:00:00Z')).toBe('2026-11-01T05:30:00.000Z')
+  })
+})
+
+describe('nextRunAfterFailure', () => {
+  const now = new Date('2026-01-01T00:00:00Z')
+  const interval = (minutes: number, failures: number) =>
+    nextRunAfterFailure({ schedule: { type: 'interval', minutes }, failures, now })
+
+  it('doubles the interval per consecutive failure', () => {
+    expect(interval(10, 1)).toBe('2026-01-01T00:20:00.000Z')
+    expect(interval(10, 3)).toBe('2026-01-01T01:20:00.000Z')
+  })
+
+  it('caps at 6 hours but never below the interval', () => {
+    expect(interval(10, 10)).toBe('2026-01-01T06:00:00.000Z')
+    expect(interval(10, 5000)).toBe('2026-01-01T06:00:00.000Z')
+    expect(interval(600, 1)).toBe('2026-01-01T10:00:00.000Z')
+  })
+
+  it('keeps the next daily occurrence', () => {
+    const schedule = { type: 'daily', time: '09:00', timezone: 'Asia/Tokyo' } as const
+    expect(nextRunAfterFailure({ schedule, failures: 3, now })).toBe(computeNextRunAt(schedule, now))
+  })
+})
+
+describe('schedule schema', () => {
+  it('rejects an interval below the minimum', () => {
+    const result = monitorConfigSchema.shape.schedule.safeParse({ type: 'interval', minutes: minIntervalMinutes - 1 })
+    expect(result.success).toBe(false)
   })
 })

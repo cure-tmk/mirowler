@@ -9,6 +9,7 @@ const monitor: Monitor = {
   enabled: true,
   configVersion: 2,
   nextRunAt: '2026-01-01T00:00:00.000Z',
+  failureCount: 0,
   name: 'price',
   schedule: { type: 'interval', minutes: 60 },
   source: { type: 'http', url: 'https://example.com' },
@@ -47,7 +48,7 @@ describe('runCheck', () => {
 
   it('non-2xx becomes unknown without event', async () => {
     const { observation, event } = await run(fetchOk(503))
-    expect(observation).toMatchObject({ state: 'unknown', reason: 'HTTP 503', value: null })
+    expect(observation).toMatchObject({ state: 'unknown', reason: 'HTTP 503', httpStatus: 503, value: null })
     expect(event).toBeNull()
   })
 
