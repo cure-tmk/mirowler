@@ -30,7 +30,7 @@ The top page posts structured fields to the HTML route `POST /monitors`, which b
 ## Monitor edit
 
 `PUT /api/monitors/:id` takes the same body as `POST /api/monitors` (JSON, or a form with a `config` JSON field). `POST /api/monitors/:id/edit` is the same handler for HTML forms, which cannot send `PUT`.
-An edit bumps `config_version`, clears the baseline and makes the monitor due now, so the next run only re-baselines. A baseline recorded under another config version is never compared against, and a run in flight during an edit does not overwrite the new schedule or baseline.
+An edit bumps `config_version`, clears the baseline and makes the monitor due now, so the next run only re-baselines. A baseline recorded under another config version is never compared against, and a run in flight during an edit does not overwrite the new schedule or baseline, although it may still emit an event computed under the old config.
 
 ## Registering a stock monitor
 
@@ -40,7 +40,7 @@ Target URLs, selectors and condition values stay outside the repository; only th
 2. Pick a selector built from stable classes or ids of the page layout, not from product ids, so it survives across products and variations.
 3. When the state lives in an attribute (such as a button's `value`), use a `css_attr` extractor with parse `text` rather than `css_text`.
 4. Evaluate it with a `rule` on `text` (`contains` the positive marker) and trigger `on_enter`, then register it with `POST /api/monitors` or the create form.
-5. Trigger `POST /api/monitors/:id/run` and check `GET /api/monitors/:id/runs`: while the item is unavailable the run's `state` is `not_matched`. `unknown` means nothing was extracted (the selector is wrong or the page changed) or the fetch failed; the run's reason tells which.
+5. Trigger `POST /api/monitors/:id/run` and check `GET /api/monitors/:id/runs`: while the item is unavailable the run's `state` is `not_matched`. `unknown` means nothing was extracted (the selector is wrong, the page changed, or a `css_text` selector matched a void element such as `<input>`) or the fetch failed; the run's reason tells which.
 
 The reference shape and the selectors it relies on are in the [fixtures README](test/fixtures/README.md).
 

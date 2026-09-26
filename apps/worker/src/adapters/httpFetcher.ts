@@ -2,13 +2,17 @@ import type { Fetcher } from '@mirowler/core'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const MAX_REDIRECTS = 5
+const CHARSET_SNIFF_BYTES = 2048
 
-/** Throws unless the URL is https with a public hostname. Rejects IP literals, localhost and `.internal`. */
+/** Throws unless the URL is https with a public hostname and no credentials. Rejects IP literals, localhost and `.internal`. */
 export const assertPublicHttpsUrl = (raw: string): URL => {
   const url = new URL(raw)
-  const host = url.hostname.toLowerCase()
+  const host = url.hostname.toLowerCase().replace(/\.$/, '')
   if (url.protocol !== 'https:') {
     throw new Error(`only https is allowed: ${raw}`)
+  }
+  if (url.username || url.password) {
+    throw new Error('credentials in the URL are not allowed')
   }
   if (
     host === 'localhost' ||
@@ -22,6 +26,19 @@ export const assertPublicHttpsUrl = (raw: string): URL => {
     throw new Error(`only public hosts are allowed: ${host}`)
   }
   return url
+}
+
+const charsetOf = (contentType: string | null, bytes: Uint8Array): string =>
+  /charset=["']?([\w-]+)/i.exec(contentType ?? '')?.[1] ??
+  /<meta[^>]+charset=["']?([\w-]+)/i.exec(String.fromCharCode(...bytes.subarray(0, CHARSET_SNIFF_BYTES)))?.[1] ??
+  'utf-8'
+
+const decode = (bytes: Uint8Array, charset: string): string => {
+  try {
+    return new TextDecoder(charset).decode(bytes)
+  } catch {
+    return new TextDecoder().decode(bytes)
+  }
 }
 
 const readLimited = async (res: Response): Promise<string> => {
@@ -46,15 +63,8 @@ const readLimited = async (res: Response): Promise<string> => {
     }
     chunks.push(value)
   }
-  const charset = /charset=["']?([\w-]+)/i.exec(res.headers.get('content-type') ?? '')?.[1]
-  const decoder = (() => {
-    try {
-      return new TextDecoder(charset ?? 'utf-8')
-    } catch {
-      return new TextDecoder()
-    }
-  })()
-  return chunks.map((c) => decoder.decode(c, { stream: true })).join('') + decoder.decode()
+  const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer())
+  return decode(bytes, charsetOf(res.headers.get('content-type'), bytes))
 }
 
 export const httpFetcher: Fetcher = async (source) => {

@@ -20,6 +20,14 @@ export const getChannel = async (db: D1Database, id: string): Promise<Channel | 
   return row ? toChannel(row) : null
 }
 
+export const findUnknownChannelIds = async (db: D1Database, ids: string[]): Promise<string[]> => {
+  const { results } = await db
+    .prepare('SELECT DISTINCT value FROM json_each(?) WHERE value NOT IN (SELECT id FROM channels)')
+    .bind(JSON.stringify(ids))
+    .all<{ value: string }>()
+  return results.map((r) => r.value)
+}
+
 export const insertChannel = async (
   db: D1Database,
   input: { displayName: string; secretName: string },

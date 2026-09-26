@@ -125,22 +125,35 @@ describe('monitor history', () => {
 })
 
 describe('slackNotifier', () => {
+  const target = { kind: 'slack_webhook', webhookUrl: 'https://hooks.example.com/services/SECRET' } as const
+  const event: MonitorEvent = {
+    id: 'm:2026-01-01T00:00:00.000Z:entered',
+    runId: 'm:2026-01-01T00:00:00.000Z',
+    monitorId: 'm',
+    kind: 'entered',
+    summary: 'In stock',
+    occurredAt: T0,
+  }
+
+  it('reports a thrown fetch error without the webhook URL', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError(`fetch failed: ${target.webhookUrl}`))
+
+    expect(await slackNotifier(event, target)).toEqual({ ok: false, error: 'request failed: TypeError' })
+  })
+
+  it('escapes Slack control characters in the summary', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('ok'))
+
+    await slackNotifier({ ...event, summary: '<!channel> A & B > C' }, target)
+
+    const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))
+    expect(body.text).toMatch(/^&lt;!channel&gt; A &amp; B &gt; C\n/)
+  })
+
   it('ends the message text with the event id', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('ok'))
-    const event: MonitorEvent = {
-      id: 'm:2026-01-01T00:00:00.000Z:entered',
-      runId: 'm:2026-01-01T00:00:00.000Z',
-      monitorId: 'm',
-      kind: 'entered',
-      summary: 'In stock',
-      occurredAt: T0,
-    }
 
-    expect(await slackNotifier(event, { kind: 'slack_webhook', webhookUrl: 'https://hooks.example.com/test' })).toEqual(
-      {
-        ok: true,
-      },
-    )
+    expect(await slackNotifier(event, target)).toEqual({ ok: true })
 
     const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))
     expect(body.text).toMatch(/\(event: m:2026-01-01T00:00:00\.000Z:entered\)$/)
