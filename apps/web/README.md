@@ -19,6 +19,7 @@ It never typechecks the Worker source, so Workers types stay out of the browser 
 ## Auth
 
 Static assets are public. Every `/api` request needs the Worker's Basic auth; the browser asks for it on the first API call and reuses it afterwards.
+Locally the Vite dev server adds the credential from `apps/worker/.dev.vars` to proxied `/api` requests, so no prompt appears; `wrangler dev` on `:8787` itself still requires it.
 
 ## Run locally
 
