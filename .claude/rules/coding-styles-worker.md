@@ -6,7 +6,8 @@
 
 ## Boundaries
 
-- `fetch` handler (Hono): the API and the `hono/jsx` admin UI, plus auth. Don't put domain logic directly in request handling.
+- `fetch` handler (Hono): the JSON API under `/api`, plus auth. The admin UI lives in `apps/web` and is served as static assets; add screens there against the API, not as `hono/jsx` pages. Don't put domain logic directly in request handling.
+- `src/api.ts` is the API type contract with `apps/web`. Keep route handlers returning `c.json(...)` with inferable types so the emitted declaration stays precise.
 - `scheduled` handler: claims due monitors (see the claim rule below), runs `runCheck` (core's pipeline), persists the result, and notifies. The evaluation logic itself belongs to core.
 - `adapters/`: implementations of core's ports (`Fetcher`, `Extractor`, `Notifier`, etc.). Aim for one file per port implementation (`httpFetcher.ts`, `htmlRewriterExtractor.ts`, `slackNotifier.ts`).
 - `db/`: one file per table. Write D1 prepared statements as plain SQL. Don't introduce an ORM.

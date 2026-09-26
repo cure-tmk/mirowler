@@ -19,6 +19,10 @@ A basis for picking a verification command proportionate to the change.
 - Changes under `apps/worker/`
   - `pnpm -F @mirowler/worker typecheck` and `pnpm -F @mirowler/worker test`
   - If `wrangler.jsonc`, `migrations/`, or binding configuration changed, also run `pnpm -F @mirowler/worker deploy:dry-run`
+  - If an API response changed, `pnpm typecheck` also checks `apps/web` against it
+- Changes under `apps/web/`
+  - `pnpm turbo run typecheck --filter=@mirowler/web` (emits the Worker's API types first) and `pnpm -F @mirowler/web build`
+  - For visible changes, run `pnpm dev` and check the page in a browser
 - `package.json`, `biome.json`, `tsconfig.base.json`, CI config changes
   - `pnpm ai:verify:fast`
 - High-risk or cross-cutting changes
