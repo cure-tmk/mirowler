@@ -1,6 +1,7 @@
 import { absoluteCenter } from './absolute-center'
 import { badge } from './badge'
 import { button } from './button'
+import { checkbox } from './checkbox'
 import { field } from './field'
 import { group } from './group'
 import { heading } from './heading'
@@ -21,6 +22,7 @@ export const recipes = {
 }
 
 export const slotRecipes = {
+  checkbox,
   field,
   table,
 }
