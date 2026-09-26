@@ -22,6 +22,11 @@ Everything except `/healthz` requires Basic auth against the Worker Secret `ADMI
 Cloudflare Access is not used because it cannot protect a `*.workers.dev` hostname and there is no custom zone yet.
 Once a custom domain is added, put an Access application in front of it and remove the `auth` middleware.
 
+## Monitor create form
+
+The top page posts structured fields to the HTML route `POST /monitors`, which builds a config from them, validates it with the shared `monitorConfigSchema` and re-renders the form with each issue next to its field (400) or redirects to the new monitor.
+A separate route keeps HTML rendering out of `/api/monitors`, which stays JSON for API clients. Every field is always rendered without JavaScript; fields that do not apply to the chosen schedule, extractor or evaluator type are ignored.
+
 ## Monitor edit
 
 `PUT /api/monitors/:id` takes the same body as `POST /api/monitors` (JSON, or a form with a `config` JSON field). `POST /api/monitors/:id/edit` is the same handler for HTML forms, which cannot send `PUT`.
