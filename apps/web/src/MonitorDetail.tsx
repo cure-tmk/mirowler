@@ -1,5 +1,5 @@
 import { type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { Link as RouterLink, useNavigate, useParams } from '@tanstack/react-router'
 import { parseResponse } from 'hono/client'
 import { useCallback, useEffect, useState } from 'react'
 import { HStack, Stack } from 'styled-system/jsx'
@@ -19,7 +19,7 @@ const RUN_POLL_MS = 2000
 // A run whose isolate dies stays `running` until the stale claim is taken over minutes later; stop polling well before that
 const RUN_POLL_WINDOW_MS = 2 * 60_000
 
-const fetchMonitor = (id: string) => parseResponse(monitorApi.$get({ param: { id } }))
+export const fetchMonitor = (id: string) => parseResponse(monitorApi.$get({ param: { id } }))
 
 const fetchRuns = (id: string, cursor: string | undefined) => {
   // The route reads `cursor` without a validator, so hc leaves `query` untyped; it still sends it
@@ -142,6 +142,11 @@ const Actions = ({
       <HStack gap="2">
         <Button onClick={() => run.mutate()} loading={run.isPending || running} loadingText="Running…">
           Run now
+        </Button>
+        <Button variant="outline" asChild>
+          <RouterLink to="/monitors/$monitorId/edit" params={{ monitorId: monitor.id }}>
+            Edit
+          </RouterLink>
         </Button>
         <Button variant="outline" onClick={() => toggle.mutate()} loading={toggle.isPending}>
           {monitor.enabled ? 'Disable' : 'Enable'}

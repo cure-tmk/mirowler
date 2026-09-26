@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { HStack } from 'styled-system/jsx'
 import { client } from '~/api'
-import { Badge, Heading, Link, Table } from '~/components/ui'
+import { Badge, Button, Heading, Link, Table } from '~/components/ui'
 import { formatRate, formatState, formatTime } from '~/format'
 
 const fetchMonitors = async () => (await client.api.monitors.$get()).json()
@@ -20,9 +20,14 @@ export const MonitorList = () => {
 
   return (
     <>
-      <Heading as="h1" textStyle="xl" mb="4">
-        Monitors
-      </Heading>
+      <HStack justify="space-between" mb="4">
+        <Heading as="h1" textStyle="xl">
+          Monitors
+        </Heading>
+        <Button asChild>
+          <RouterLink to="/monitors/new">New monitor</RouterLink>
+        </Button>
+      </HStack>
       {error ? (
         <p role="alert">{error.message}</p>
       ) : !data ? (

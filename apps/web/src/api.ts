@@ -4,6 +4,7 @@ import { hc } from 'hono/client'
 type ErrorBody = {
   error?: string
   monitors?: { id: string; name: string }[]
+  issues?: { path: string; message: string }[]
 }
 
 type Failure = { status: number; body: ErrorBody | undefined }

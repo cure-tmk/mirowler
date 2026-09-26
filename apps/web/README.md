@@ -9,6 +9,7 @@ The admin UI: a React single-page app built with Vite and served by the Worker a
 - TanStack Router (code-based routes in `src/router.tsx`) and TanStack Query
 - Park UI on Panda CSS: components and recipes are copied into `src/components/ui` and `src/theme` with `npx @park-ui/cli add <component>` (configured by `components.json`); Panda generates `styled-system/`, which is not committed
 - Hono RPC client (`hc`) typed by the Worker's API type
+- React Hook Form for the monitor form, validated with core's `monitorConfigSchema` through the zod resolver; the Worker still validates, and its 400 `issues` are shown next to the field their path names
 
 ## Screens
 
