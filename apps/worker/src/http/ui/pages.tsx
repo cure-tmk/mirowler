@@ -1,27 +1,14 @@
-import { monitorConfigSchema } from '@mirowler/core'
+import { type Monitor, monitorConfigSchema } from '@mirowler/core'
 import { Hono } from 'hono'
 import { type Channel, insertChannel, listChannels } from '../../db/channels'
-import { getMonitor, listMonitors } from '../../db/monitors'
+import { getMonitor, insertMonitor, listMonitors } from '../../db/monitors'
 import { listHistoryByMonitor } from '../../db/runs'
 import type { AppEnv } from '../../env'
 import { runNow } from '../../scheduled'
 import { sendTestMessage } from '../../scheduled/retryNotifications'
 import { isValidChannelInput } from '../api/channels'
 import { Layout } from './Layout'
-
-const exampleConfig = JSON.stringify(
-  {
-    name: 'Item price',
-    schedule: { type: 'interval', minutes: 60 },
-    source: { type: 'http', url: 'https://example.com/item' },
-    extractor: { type: 'css_text', selector: '.price', parse: 'jpy' },
-    evaluator: { type: 'rule', field: 'jpy', op: 'lte', value: 10000 },
-    trigger: { type: 'on_enter' },
-    channelIds: ['<channel id>'],
-  },
-  null,
-  2,
-)
+import { defaultFormValues, type FormErrors, type FormValues, formToConfig, MonitorForm, readForm } from './monitorForm'
 
 const ChannelsPage = ({
   channels,
@@ -84,47 +71,59 @@ const ChannelsPage = ({
   </Layout>
 )
 
+const MonitorsPage = ({
+  monitors,
+  channels,
+  values,
+  errors,
+}: {
+  monitors: Monitor[]
+  channels: Channel[]
+  values: FormValues
+  errors?: FormErrors
+}) => (
+  <Layout title="Monitors">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>URL</th>
+          <th>Enabled</th>
+          <th>Next run</th>
+        </tr>
+      </thead>
+      <tbody>
+        {monitors.map((m) => (
+          <tr>
+            <td>
+              <a href={`/monitors/${m.id}`}>{m.name}</a>
+            </td>
+            <td>{m.source.url}</td>
+            <td>{m.enabled ? 'yes' : 'no'}</td>
+            <td>{m.nextRunAt}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <h2>Add monitor</h2>
+    <MonitorForm channels={channels} values={values} errors={errors} />
+  </Layout>
+)
+
 export const pages = new Hono<AppEnv>()
   .get('/', async (c) => {
-    const monitors = await listMonitors(c.env.DB)
-    return c.html(
-      <Layout title="Monitors">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>URL</th>
-              <th>Enabled</th>
-              <th>Next run</th>
-            </tr>
-          </thead>
-          <tbody>
-            {monitors.map((m) => (
-              <tr>
-                <td>
-                  <a href={`/monitors/${m.id}`}>{m.name}</a>
-                </td>
-                <td>{m.source.url}</td>
-                <td>{m.enabled ? 'yes' : 'no'}</td>
-                <td>{m.nextRunAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <h2>Add monitor</h2>
-        <form method="post" action="/api/monitors">
-          <label>
-            Config JSON
-            <br />
-            <textarea name="config" rows={16} cols={80} required>
-              {exampleConfig}
-            </textarea>
-          </label>
-          <br />
-          <button type="submit">Add</button>
-        </form>
-      </Layout>,
-    )
+    const [monitors, channels] = await Promise.all([listMonitors(c.env.DB), listChannels(c.env.DB)])
+    return c.html(<MonitorsPage monitors={monitors} channels={channels} values={defaultFormValues} />)
+  })
+  .post('/monitors', async (c) => {
+    const values = readForm(await c.req.parseBody({ all: true }))
+    const { config, errors } = formToConfig(values)
+    if (!config) {
+      const [monitors, channels] = await Promise.all([listMonitors(c.env.DB), listChannels(c.env.DB)])
+      return c.html(<MonitorsPage monitors={monitors} channels={channels} values={values} errors={errors} />, 400)
+    }
+    const id = await insertMonitor(c.env.DB, config, new Date().toISOString())
+    return c.redirect(`/monitors/${id}`)
   })
   .get('/monitors/:id', async (c) => {
     const monitor = await getMonitor(c.env.DB, c.req.param('id'))
