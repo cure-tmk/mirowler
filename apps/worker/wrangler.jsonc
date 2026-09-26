@@ -7,7 +7,7 @@
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api", "/api/*", "/healthz"]
+    "run_worker_first": ["/api", "/api/*", "/healthz", "/__scheduled"]
   },
   "vars": { "RETENTION_DAYS": 30 },
   "triggers": { "crons": ["* * * * *"] },

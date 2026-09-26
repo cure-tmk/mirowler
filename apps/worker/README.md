@@ -22,7 +22,7 @@ After 8 attempts the notification becomes `failed` and is shown on the monitor p
 ## Static assets
 
 `wrangler.jsonc` serves `apps/web/dist` through Workers Static Assets with single-page-application fallback, so navigation to any path that is not a file returns the web app's `index.html`.
-Only `/api`, `/api/*` and `/healthz` always reach the Worker first (`run_worker_first`); without that, a browser navigation to `/api/...` would get `index.html`.
+Only `/api`, `/api/*`, `/healthz` and `/__scheduled` always reach the Worker first (`run_worker_first`); without that, a browser navigation to `/api/...` would get `index.html`, and `wrangler dev --test-scheduled` could not be triggered locally. In production `/__scheduled` only reaches Basic auth.
 Assets are public and are served without invoking the Worker; everything under `/api` stays behind Basic auth.
 The build must exist before `wrangler dev` or a deploy: `deploy:dry-run` and `deploy:remote` build it themselves, and the root `pnpm dev` builds it before starting the dev servers.
 The hono/jsx pages are still routed, but browser navigation to them now gets the web app instead; they are removed once the web app covers their actions.
