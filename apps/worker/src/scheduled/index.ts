@@ -10,13 +10,12 @@ import {
 import { htmlRewriterExtractor } from '../adapters/htmlRewriterExtractor'
 import { httpFetcher } from '../adapters/httpFetcher'
 import { insertEvent } from '../db/events'
-import { claimById, claimDue, finishRun } from '../db/monitors'
+import { claimById, claimDue, finishRun, STALE_MS } from '../db/monitors'
 import { insertPending } from '../db/notifications'
 import { completeRun, deleteRunsBefore, failRun, getLastValid, insertRun } from '../db/runs'
 import type { Bindings } from '../env'
 import { deliver, retryNotifications } from './retryNotifications'
 
-const STALE_MS = 10 * 60 * 1000
 const CLAIM_LIMIT = 20
 const DAY_MS = 24 * 60 * 60 * 1000
 

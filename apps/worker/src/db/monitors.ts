@@ -1,4 +1,8 @@
-import { type Monitor, type MonitorConfig, monitorConfigSchema } from '@mirowler/core'
+import { type MatchState, type Monitor, type MonitorConfig, monitorConfigSchema } from '@mirowler/core'
+
+export const STALE_MS = 10 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+const HEALTH_WINDOW = 20
 
 type MonitorRow = {
   id: string
@@ -7,6 +11,7 @@ type MonitorRow = {
   config_version: number
   next_run_at: string
   failure_count: number
+  running_since: string | null
 }
 
 const toMonitor = (row: MonitorRow): Monitor => ({
@@ -21,6 +26,67 @@ const toMonitor = (row: MonitorRow): Monitor => ({
 export const listMonitors = async (db: D1Database): Promise<Monitor[]> => {
   const { results } = await db.prepare('SELECT * FROM monitors ORDER BY created_at').all<MonitorRow>()
   return results.map(toMonitor)
+}
+
+export type MonitorHealth = Monitor & {
+  consecutiveUnknown: number
+  failureRate: number | null
+  lastRun: { at: string; state: MatchState | null } | null
+  delayed: boolean
+}
+
+type HealthRunRow = {
+  monitor_id: string
+  scheduled_at: string
+  finished_at: string | null
+  status: string
+  state: MatchState | null
+}
+
+const isDelayed = (m: Monitor, runningSince: string | null, now: Date) => {
+  if (!m.enabled) {
+    return false
+  }
+  if (runningSince && Date.parse(runningSince) < now.getTime() - STALE_MS) {
+    return true
+  }
+  const allowedMs = m.schedule.type === 'interval' ? 2 * m.schedule.minutes * 60_000 : DAY_MS
+  return now.getTime() - Date.parse(m.nextRunAt) > allowedMs
+}
+
+const toHealth = (row: MonitorRow, runs: HealthRunRow[], now: Date): MonitorHealth => {
+  const monitor = toMonitor(row)
+  const firstKnown = runs.findIndex((r) => r.state !== 'unknown')
+  const failures = runs.filter((r) => r.state === 'unknown' || r.status === 'error').length
+  const last = runs[0]
+  return {
+    ...monitor,
+    consecutiveUnknown: firstKnown === -1 ? runs.length : firstKnown,
+    failureRate: runs.length ? failures / runs.length : null,
+    lastRun: last ? { at: last.finished_at ?? last.scheduled_at, state: last.state } : null,
+    delayed: isDelayed(monitor, row.running_since, now),
+  }
+}
+
+/** Monitors with health over their last 20 finished runs under the current config. `delayed` means the schedule or a claimed run is overdue. */
+export const listMonitorHealth = async (db: D1Database, now: Date): Promise<MonitorHealth[]> => {
+  const [monitors, runs] = await db.batch([
+    db.prepare('SELECT * FROM monitors ORDER BY created_at'),
+    db
+      .prepare(
+        `SELECT monitor_id, scheduled_at, finished_at, status, state FROM (
+          SELECT runs.*, row_number() OVER (PARTITION BY runs.monitor_id ORDER BY runs.scheduled_at DESC) AS rn
+          FROM runs JOIN monitors ON monitors.id = runs.monitor_id AND monitors.config_version = runs.config_version
+          WHERE runs.status != 'running'
+        ) WHERE rn <= ? ORDER BY monitor_id, rn`,
+      )
+      .bind(HEALTH_WINDOW),
+  ])
+  const byMonitor = new Map<string, HealthRunRow[]>()
+  for (const r of (runs?.results ?? []) as HealthRunRow[]) {
+    byMonitor.set(r.monitor_id, [...(byMonitor.get(r.monitor_id) ?? []), r])
+  }
+  return ((monitors?.results ?? []) as MonitorRow[]).map((row) => toHealth(row, byMonitor.get(row.id) ?? [], now))
 }
 
 export const getMonitor = async (db: D1Database, id: string): Promise<Monitor | null> => {
