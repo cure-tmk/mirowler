@@ -55,7 +55,8 @@ An absolute threshold and a relative drop are separate monitors:
 - `change` with `decreased_by_percent` compares against the previous valid observation; the first valid observation is only the baseline and never notifies
 
 Daily schedules take an IANA time zone name such as `Asia/Tokyo`.
-A price that cannot be found or parsed yields `unknown`, which never notifies and never moves the baseline.
+A `change` monitor notifies on every observation that qualifies against the previous valid one, so each further drop notifies again; `trigger.type` is ignored for `change` evaluators.
+A price that cannot be found or parsed, or that is zero or negative, yields `unknown`, which never notifies and never moves the baseline.
 
 ## Run locally
 

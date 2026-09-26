@@ -180,13 +180,16 @@ describe('price drop monitor on target-a fixtures', () => {
     expect(event).toBeNull()
   })
 
-  it('emits exactly one entered event on a drop of 10% or more', async () => {
+  it('emits an event on every drop of 10% or more, and none while the price holds', async () => {
     const first = await baseline()
     const second = await check(priced('111,110円'), { ...options, previousValid: first.observation })
     expect(second.observation.state).toBe('matched')
-    expect(second.event).toMatchObject({ kind: 'entered' })
+    expect(second.event).toMatchObject({ kind: 'value_changed' })
     const third = await check(priced('111,110円'), { ...options, previousValid: second.observation })
     expect(third.event).toBeNull()
+    const fourth = await check(priced('99,999円'), { ...options, previousValid: second.observation })
+    expect(fourth.observation.state).toBe('matched')
+    expect(fourth.event).toMatchObject({ kind: 'value_changed' })
   })
 
   it('ignores a 5% drop', async () => {
@@ -210,10 +213,11 @@ describe('price drop monitor on target-a fixtures', () => {
         previousValid: first.observation,
         current: observation,
         trigger: { type: 'on_enter' },
+        evaluatorType: 'change',
         now: '2026-01-01T00:00:00.000Z',
       }),
     ).toBeNull()
     const next = await check(priced('111,110円'), { ...options, previousValid: first.observation })
-    expect(next.event).toMatchObject({ kind: 'entered' })
+    expect(next.event).toMatchObject({ kind: 'value_changed' })
   })
 })

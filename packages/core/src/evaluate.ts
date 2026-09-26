@@ -26,18 +26,19 @@ export const evaluateRule: Evaluator = async ({ value, previousValid, config }) 
     return result(config.op === 'lt' ? current < config.value : current <= config.value)
   }
 
+  if (config.op === 'changed') {
+    if (current === null) {
+      return unknown('value missing')
+    }
+  } else if (typeof current !== 'number' || !Number.isFinite(current) || current <= 0) {
+    return unknown(`${config.op} requires a positive finite number`)
+  }
   if (previousValid === null) {
-    if (config.op !== 'changed' && typeof current !== 'number') {
-      return unknown(`${config.op} requires numeric values`)
-    }
-    if (config.op === 'decreased_by_percent' && typeof current === 'number' && current <= 0) {
-      return unknown('value must be positive for percent change')
-    }
     return result(false)
   }
   const previous = previousValid.value?.[config.field]
-  if (previous === undefined) {
-    return unknown(`field "${config.field}" is missing in previous observation`)
+  if (previous === undefined || previous === null) {
+    return unknown('value missing')
   }
   if (config.op === 'changed') {
     return result(current !== previous)
