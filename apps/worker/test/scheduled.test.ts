@@ -155,6 +155,22 @@ describe('scheduled', () => {
     expect(await minutesFromNow()).toBeLessThanOrEqual(60)
   })
 
+  it('skips a monitor whose stored config is invalid without failing the tick', async () => {
+    const broken = await insertMonitor(env.DB, config, T0)
+    await setMonitor(broken, 'config_json = ?', '{"name":"broken"}')
+    const valid = await insertMonitor(env.DB, config, T0)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    servePage('In stock')
+
+    await tick()
+
+    const runs = await env.DB.prepare('SELECT monitor_id FROM runs').all()
+    expect(runs.results).toEqual([{ monitor_id: valid }])
+    const row = await monitorRow(broken)
+    expect(row?.running_since).toBeNull()
+    expect(Date.parse(row!.next_run_at)).toBeGreaterThan(Date.now())
+  })
+
   it('fetches monitors on the same host one after another', async () => {
     const urls = ['https://example.com/a', 'https://example.com/b', 'https://example.org/c']
     for (const url of urls) {

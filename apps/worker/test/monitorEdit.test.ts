@@ -52,7 +52,14 @@ const runVersions = async (id: string) =>
 
 const eventCount = async () => (await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first<number>('n')) ?? 0
 
-beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS))
+beforeAll(async () => {
+  await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
+  await env.DB.prepare(
+    `INSERT INTO channels (id, kind, display_name, secret_name, created_at) VALUES ('ch-a', 'slack_webhook', 'a', 'SLACK_A', ?)`,
+  )
+    .bind(T0)
+    .run()
+})
 
 beforeEach(async () => {
   vi.restoreAllMocks()
@@ -133,6 +140,26 @@ describe('monitor edit', () => {
     expect(html).toContain('kept &lt;edit&gt;')
     expect(html).toMatch(/<ul role="alert"><li>schedule\.minutes: /)
     expect(await monitorRow(id)).toEqual(before)
+  })
+
+  it('resets the failure count', async () => {
+    const id = await insertMonitor(env.DB, config, T0)
+    await env.DB.prepare('UPDATE monitors SET failure_count = 3 WHERE id = ?').bind(id).run()
+
+    await updateMonitorConfig(env.DB, id, soldOutConfig, T0)
+
+    expect(
+      await env.DB.prepare('SELECT failure_count FROM monitors WHERE id = ?').bind(id).first('failure_count'),
+    ).toBe(0)
+  })
+
+  it('rejects unknown channel ids with 400 and lists them', async () => {
+    const id = await insertMonitor(env.DB, config, T0)
+
+    const res = await edit(id, { ...config, channelIds: ['ch-a', 'ch-missing'] })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'unknown channelIds: ch-missing' })
   })
 
   it('returns 404 for an unknown monitor', async () => {

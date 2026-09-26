@@ -1,4 +1,4 @@
-import type { EventKind, MonitorEvent } from '@mirowler/core'
+import type { MonitorEvent } from '@mirowler/core'
 
 export const MAX_ATTEMPTS = 5
 
@@ -15,30 +15,14 @@ export const listPending = async (
 ): Promise<{ event: MonitorEvent; channelId: string }[]> => {
   const { results } = await db
     .prepare(
-      `SELECT e.*, n.channel_id FROM notifications n JOIN events e ON e.id = n.event_id
+      `SELECT e.id, e.run_id AS runId, e.monitor_id AS monitorId, e.kind, e.summary, e.occurred_at AS occurredAt,
+       n.channel_id AS channelId
+       FROM notifications n JOIN events e ON e.id = n.event_id
        WHERE n.status = 'pending' AND n.attempts < ? ORDER BY e.occurred_at LIMIT ?`,
     )
     .bind(MAX_ATTEMPTS, limit)
-    .all<{
-      id: string
-      run_id: string
-      monitor_id: string
-      kind: EventKind
-      summary: string
-      occurred_at: string
-      channel_id: string
-    }>()
-  return results.map((r) => ({
-    event: {
-      id: r.id,
-      runId: r.run_id,
-      monitorId: r.monitor_id,
-      kind: r.kind,
-      summary: r.summary,
-      occurredAt: r.occurred_at,
-    },
-    channelId: r.channel_id,
-  }))
+    .all<MonitorEvent & { channelId: string }>()
+  return results.map(({ channelId, ...event }) => ({ event, channelId }))
 }
 
 export const markSent = async (db: D1Database, eventId: string, channelId: string, now: string) => {
@@ -61,6 +45,10 @@ export const markFailed = async (db: D1Database, eventId: string, channelId: str
     .run()
 }
 
+const HISTORY_SELECT = `SELECT n.event_id AS eventId, e.occurred_at AS occurredAt,
+  COALESCE(c.display_name, n.channel_id) AS channel, n.status, n.attempts, n.last_error AS lastError, n.sent_at AS sentAt
+  FROM notifications n JOIN events e ON e.id = n.event_id LEFT JOIN channels c ON c.id = n.channel_id`
+
 export type MonitorNotification = {
   eventId: string
   occurredAt: string
@@ -77,12 +65,7 @@ export const listNotificationsByMonitor = async (
   limit = 50,
 ): Promise<MonitorNotification[]> => {
   const { results } = await db
-    .prepare(
-      `SELECT n.event_id AS eventId, e.occurred_at AS occurredAt, COALESCE(c.display_name, n.channel_id) AS channel,
-       n.status, n.attempts, n.last_error AS lastError, n.sent_at AS sentAt
-       FROM notifications n JOIN events e ON e.id = n.event_id LEFT JOIN channels c ON c.id = n.channel_id
-       WHERE e.monitor_id = ? ORDER BY e.occurred_at DESC, n.channel_id LIMIT ?`,
-    )
+    .prepare(`${HISTORY_SELECT} WHERE e.monitor_id = ? ORDER BY e.occurred_at DESC, n.channel_id LIMIT ?`)
     .bind(monitorId, limit)
     .all<MonitorNotification>()
   return results
@@ -90,12 +73,7 @@ export const listNotificationsByMonitor = async (
 
 export const listNotificationsByEvents = async (db: D1Database, eventIds: string[]): Promise<MonitorNotification[]> => {
   const { results } = await db
-    .prepare(
-      `SELECT n.event_id AS eventId, e.occurred_at AS occurredAt, COALESCE(c.display_name, n.channel_id) AS channel,
-       n.status, n.attempts, n.last_error AS lastError, n.sent_at AS sentAt
-       FROM notifications n JOIN events e ON e.id = n.event_id LEFT JOIN channels c ON c.id = n.channel_id
-       WHERE n.event_id IN (SELECT value FROM json_each(?)) ORDER BY n.channel_id`,
-    )
+    .prepare(`${HISTORY_SELECT} WHERE n.event_id IN (SELECT value FROM json_each(?)) ORDER BY n.channel_id`)
     .bind(JSON.stringify(eventIds))
     .all<MonitorNotification>()
   return results

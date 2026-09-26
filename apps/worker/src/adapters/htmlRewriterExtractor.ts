@@ -15,6 +15,7 @@ export const htmlRewriterExtractor: Extractor = async (fetched, config) => {
   let phase: 'before' | 'inside' | 'done' = 'before'
   let text = ''
   let attr = null as string | null
+  let isVoid = false
   await new HTMLRewriter()
     .on(config.selector, {
       element(el) {
@@ -32,6 +33,7 @@ export const htmlRewriterExtractor: Extractor = async (fetched, config) => {
             phase = 'done'
           })
         } catch {
+          isVoid = true
           phase = 'done'
         }
       },
@@ -51,6 +53,8 @@ export const htmlRewriterExtractor: Extractor = async (fetched, config) => {
       return { value: null, reason: `attribute not found: ${config.attribute}` }
     }
     text = attr
+  } else if (isVoid) {
+    return { value: null, reason: 'element has no text content' }
   }
   return { value: parseValue(decodeEntities(text).trim(), config.parse) }
 }

@@ -10,14 +10,13 @@ import {
 import { htmlRewriterExtractor } from '../adapters/htmlRewriterExtractor'
 import { httpFetcher } from '../adapters/httpFetcher'
 import { insertEvent } from '../db/events'
-import { claimById, claimDue, finishRun, STALE_MS } from '../db/monitors'
+import { claimById, claimDue, DAY_MS, finishRun, STALE_MS } from '../db/monitors'
 import { insertPending } from '../db/notifications'
 import { completeRun, deleteRunsBefore, failRun, getLastValid, insertRun } from '../db/runs'
 import type { Bindings } from '../env'
 import { deliver, retryNotifications } from './retryNotifications'
 
 const CLAIM_LIMIT = 20
-const DAY_MS = 24 * 60 * 60 * 1000
 
 const staleBefore = (now: Date) => new Date(now.getTime() - STALE_MS).toISOString()
 
@@ -77,6 +76,7 @@ const runMonitor = async (env: Bindings, monitor: Monitor, now: Date, manual = f
       }
     }
   } catch (e) {
+    console.error('run failed', monitor.id, runId, e)
     await failRun(env.DB, runId, String(e), new Date().toISOString())
   } finally {
     await finishRun(env.DB, monitor.id, monitor.configVersion, {
@@ -95,16 +95,16 @@ export const runNow = async (env: Bindings, monitorId: string): Promise<string |
 }
 
 /** Within one tick, runs monitors sharing a URL host one after another; different hosts run concurrently. */
-export const runByHost = async (monitors: Monitor[], run: (m: Monitor) => Promise<unknown>) => {
+const runByHost = async (monitors: Monitor[], run: (m: Monitor) => Promise<unknown>) => {
   const byHost = new Map<string, Monitor[]>()
   for (const m of monitors) {
     const host = new URL(m.source.url).host
     byHost.set(host, [...(byHost.get(host) ?? []), m])
   }
-  await Promise.allSettled(
+  await Promise.all(
     [...byHost.values()].map(async (group) => {
       for (const m of group) {
-        await run(m).catch(() => {})
+        await run(m).catch((e) => console.error('monitor run failed', m.id, e))
       }
     }),
   )
@@ -115,5 +115,5 @@ export const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (_cont
   const monitors = await claimDue(env.DB, now.toISOString(), staleBefore(now), CLAIM_LIMIT)
   await runByHost(monitors, (m) => runMonitor(env, m, now))
   await retryNotifications(env)
-  await deleteRunsBefore(env.DB, new Date(now.getTime() - env.RETENTION_DAYS * DAY_MS).toISOString())
+  await deleteRunsBefore(env.DB, new Date(now.getTime() - (Number(env.RETENTION_DAYS) || 30) * DAY_MS).toISOString())
 }

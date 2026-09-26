@@ -1,7 +1,7 @@
 import { type MatchState, type Monitor, type MonitorConfig, monitorConfigSchema } from '@mirowler/core'
 
 export const STALE_MS = 10 * 60 * 1000
-const DAY_MS = 24 * 60 * 60 * 1000
+export const DAY_MS = 24 * 60 * 60 * 1000
 const HEALTH_WINDOW = 20
 
 type MonitorRow = {
@@ -14,18 +14,35 @@ type MonitorRow = {
   running_since: string | null
 }
 
-const toMonitor = (row: MonitorRow): Monitor => ({
-  ...monitorConfigSchema.parse(JSON.parse(row.config_json)),
-  id: row.id,
-  enabled: row.enabled === 1,
-  configVersion: row.config_version,
-  nextRunAt: row.next_run_at,
-  failureCount: row.failure_count,
-})
+const parseJson = (json: string): unknown => {
+  try {
+    return JSON.parse(json)
+  } catch {
+    return undefined
+  }
+}
+
+const toMonitor = (row: MonitorRow): Monitor | null => {
+  const parsed = monitorConfigSchema.safeParse(parseJson(row.config_json))
+  if (!parsed.success) {
+    console.error('skipping monitor with invalid config', row.id, parsed.error.issues)
+    return null
+  }
+  return {
+    ...parsed.data,
+    id: row.id,
+    enabled: row.enabled === 1,
+    configVersion: row.config_version,
+    nextRunAt: row.next_run_at,
+    failureCount: row.failure_count,
+  }
+}
+
+const isPresent = <T>(v: T | null): v is T => v !== null
 
 export const listMonitors = async (db: D1Database): Promise<Monitor[]> => {
   const { results } = await db.prepare('SELECT * FROM monitors ORDER BY created_at').all<MonitorRow>()
-  return results.map(toMonitor)
+  return results.map(toMonitor).filter(isPresent)
 }
 
 export type MonitorHealth = Monitor & {
@@ -54,8 +71,11 @@ const isDelayed = (m: Monitor, runningSince: string | null, now: Date) => {
   return now.getTime() - Date.parse(m.nextRunAt) > allowedMs
 }
 
-const toHealth = (row: MonitorRow, runs: HealthRunRow[], now: Date): MonitorHealth => {
+const toHealth = (row: MonitorRow, runs: HealthRunRow[], now: Date): MonitorHealth | null => {
   const monitor = toMonitor(row)
+  if (!monitor) {
+    return null
+  }
   const firstKnown = runs.findIndex((r) => r.state !== 'unknown')
   const failures = runs.filter((r) => r.state === 'unknown' || r.status === 'error').length
   const last = runs[0]
@@ -86,7 +106,9 @@ export const listMonitorHealth = async (db: D1Database, now: Date): Promise<Moni
   for (const r of (runs?.results ?? []) as HealthRunRow[]) {
     byMonitor.set(r.monitor_id, [...(byMonitor.get(r.monitor_id) ?? []), r])
   }
-  return ((monitors?.results ?? []) as MonitorRow[]).map((row) => toHealth(row, byMonitor.get(row.id) ?? [], now))
+  return ((monitors?.results ?? []) as MonitorRow[])
+    .map((row) => toHealth(row, byMonitor.get(row.id) ?? [], now))
+    .filter(isPresent)
 }
 
 export const getMonitor = async (db: D1Database, id: string): Promise<Monitor | null> => {
@@ -113,18 +135,21 @@ export const setMonitorEnabled = async (db: D1Database, id: string, enabled: boo
   return meta.changes === 1
 }
 
-/** Replaces the config, bumps its version and resets the baseline so the next tick re-baselines under the new config. */
+/** Replaces the config, bumps its version and resets the baseline and failure count so the next tick re-baselines under the new config. */
 export const updateMonitorConfig = async (db: D1Database, id: string, config: MonitorConfig, now: string) => {
   const { meta } = await db
     .prepare(
-      'UPDATE monitors SET name = ?, config_json = ?, config_version = config_version + 1, last_valid_run_id = NULL, next_run_at = ?, updated_at = ? WHERE id = ?',
+      'UPDATE monitors SET name = ?, config_json = ?, config_version = config_version + 1, last_valid_run_id = NULL, failure_count = 0, next_run_at = ?, updated_at = ? WHERE id = ?',
     )
     .bind(config.name, JSON.stringify(config), now, now, id)
     .run()
   return meta.changes === 1
 }
 
-/** Claims due monitors with one conditional UPDATE per row. A `running_since` older than `staleBefore` counts as abandoned and is taken over. */
+/**
+ * Claims due monitors with one conditional UPDATE per row. A `running_since` older than `staleBefore` counts as abandoned and is taken over.
+ * A row with an invalid config is deferred by a day so it does not keep taking a slot of `limit`.
+ */
 export const claimDue = async (db: D1Database, now: string, staleBefore: string, limit: number): Promise<Monitor[]> => {
   const { results } = await db
     .prepare('SELECT * FROM monitors WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at LIMIT ?')
@@ -133,11 +158,17 @@ export const claimDue = async (db: D1Database, now: string, staleBefore: string,
   const claim = db.prepare(
     'UPDATE monitors SET running_since = ?1 WHERE id = ?2 AND next_run_at <= ?1 AND (running_since IS NULL OR running_since < ?3)',
   )
+  const defer = db.prepare('UPDATE monitors SET next_run_at = ? WHERE id = ?')
   const claimed: Monitor[] = []
   for (const row of results) {
+    const monitor = toMonitor(row)
+    if (!monitor) {
+      await defer.bind(new Date(Date.parse(now) + DAY_MS).toISOString(), row.id).run()
+      continue
+    }
     const { meta } = await claim.bind(now, row.id, staleBefore).run()
     if (meta.changes === 1) {
-      claimed.push(toMonitor(row))
+      claimed.push(monitor)
     }
   }
   return claimed

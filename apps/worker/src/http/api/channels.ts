@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
+import { sendTestMessage } from '../../adapters/notify'
 import { insertChannel, listChannels } from '../../db/channels'
 import type { AppEnv } from '../../env'
-import { sendTestMessage } from '../../scheduled/retryNotifications'
 
 export const isValidChannelInput = (input: {
   displayName?: unknown
@@ -10,14 +10,14 @@ export const isValidChannelInput = (input: {
   typeof input.displayName === 'string' &&
   input.displayName.trim() !== '' &&
   typeof input.secretName === 'string' &&
-  /^[A-Z0-9_]+$/.test(input.secretName)
+  /^SLACK_[A-Z0-9_]+$/.test(input.secretName)
 
 export const channelsApi = new Hono<AppEnv>()
   .get('/', async (c) => c.json(await listChannels(c.env.DB)))
   .post('/', async (c) => {
     const input = await c.req.json<{ displayName?: unknown; secretName?: unknown }>().catch(() => ({}))
     if (!isValidChannelInput(input)) {
-      return c.json({ error: 'displayName and secretName (A-Z, 0-9, _) are required' }, 400)
+      return c.json({ error: 'displayName and secretName (SLACK_ followed by A-Z, 0-9, _) are required' }, 400)
     }
     const { displayName, secretName } = input
     return c.json({ id: await insertChannel(c.env.DB, { displayName, secretName }, new Date().toISOString()) }, 201)

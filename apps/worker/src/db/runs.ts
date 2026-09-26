@@ -39,7 +39,8 @@ export const insertRun = async (
   await db
     .prepare(
       `INSERT INTO runs (run_id, monitor_id, config_version, scheduled_at, started_at, status) VALUES (?, ?, ?, ?, ?, 'running')
-       ON CONFLICT (run_id) DO UPDATE SET started_at = excluded.started_at, status = 'running'`,
+       ON CONFLICT (run_id) DO UPDATE SET started_at = excluded.started_at, status = 'running',
+         finished_at = NULL, value_json = NULL, state = NULL, reason = NULL, content_hash = NULL, error = NULL`,
     )
     .bind(run.runId, run.monitorId, run.configVersion, run.scheduledAt, run.startedAt)
     .run()
@@ -48,7 +49,7 @@ export const insertRun = async (
 export const completeRun = async (db: D1Database, observation: Observation, finishedAt: string) => {
   await db
     .prepare(
-      `UPDATE runs SET finished_at = ?, status = 'done', value_json = ?, state = ?, reason = ?, content_hash = ? WHERE run_id = ?`,
+      `UPDATE runs SET finished_at = ?, status = 'done', value_json = ?, state = ?, reason = ?, content_hash = ?, error = NULL WHERE run_id = ?`,
     )
     .bind(
       finishedAt,

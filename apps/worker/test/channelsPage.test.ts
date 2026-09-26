@@ -44,4 +44,20 @@ describe('channels page', () => {
     expect(await res.text()).toContain('secret name may only contain')
     expect(await channelCount()).toBe(before)
   })
+
+  it('accepts only secret names with the SLACK_ prefix', async () => {
+    const create = (secretName: string) =>
+      app.request(
+        '/api/channels',
+        {
+          method: 'POST',
+          headers: { Authorization: authorization, 'content-type': 'application/json' },
+          body: JSON.stringify({ displayName: 'Prefix', secretName }),
+        },
+        testEnv,
+      )
+
+    expect((await create('WEBHOOK_MAIN')).status).toBe(400)
+    expect((await create('SLACK_WEBHOOK_MAIN')).status).toBe(201)
+  })
 })

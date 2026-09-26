@@ -39,6 +39,15 @@ describe('htmlRewriterExtractor', () => {
     })
   })
 
+  it('returns a null value for css_text on a void element', async () => {
+    const result = await htmlRewriterExtractor(page('<input class="b" value="x">'), {
+      type: 'css_text',
+      selector: '.b',
+      parse: 'text',
+    })
+    expect(result).toEqual({ value: null, reason: 'element has no text content' })
+  })
+
   it('reads an attribute of the first match', async () => {
     const result = await htmlRewriterExtractor(page(inStock), {
       type: 'css_attr',
