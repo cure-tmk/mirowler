@@ -82,6 +82,11 @@ No script is named `deploy`: pnpm reserves `pnpm deploy` as a built-in command.
 
 CI runs `pnpm ai:verify` and a worker deploy dry run (`pnpm -F @mirowler/worker deploy:dry-run`) on every pull request and on pushes to `main`.
 
+## Dependency updates
+
+- Renovate (`renovate.json`) opens update PRs with `update:` commits. It waits one day after a release, matching pnpm's default `minimumReleaseAge`.
+- Non-major updates are merged by Renovate once CI passes. Major updates stay open for a maintainer to review.
+
 ## Release
 
 - Every push to `main` that passes CI gets a `v*` tag computed from the Conventional Commits since the last tag (`.github/scripts/next-tag.sh`, runnable locally): `feat` bumps minor, any other type bumps patch, and `!` or `BREAKING CHANGE` bumps major (minor while the major is 0). The first tag is `v0.1.0`.
