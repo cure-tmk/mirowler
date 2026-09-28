@@ -13,7 +13,7 @@
     "@ark-ui/react": "5.39.2",
     "@hookform/resolvers": "5.9.1",
     "@mirowler/core": "workspace:*",
-    "@tanstack/react-query": "5.103.2",
+    "@tanstack/react-query": "5.104.0",
     "@tanstack/react-router": "1.170.39",
     "hono": "4.13.9",
     "react": "19.3.0",
