@@ -8,11 +8,13 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
 - `packages/core`: the runtime-dependency-free domain layer. Holds monitor types and zod schemas, ports (function types) for interacting with the outside world, and the evaluate / trigger / schedule / parse / run pipeline.
 - `apps/worker`: implements `packages/core`'s ports on the Cloudflare Workers runtime (HTTP fetch, CSS extraction, Slack notification adapters), reads and writes D1, and wires up the Hono API and scheduled execution.
 - `apps/web`: the admin UI, a React single-page app the Worker serves as static assets; it talks to the Worker only through `/api`.
+- `apps/cli`: a terminal command and a local stdio MCP server for the admin API, sharing one list of operations; like the web app it is only an `/api` client.
 
 ## Directories
 
 - `apps/worker`: the Cloudflare Worker itself (`@mirowler/worker`). See [apps/worker/README.md](./apps/worker/README.md)
 - `apps/web`: the admin UI (`@mirowler/web`). See [apps/web/README.md](./apps/web/README.md)
+- `apps/cli`: the CLI and MCP server (`@mirowler/cli`). See [apps/cli/README.md](./apps/cli/README.md)
 - `packages/core`: domain logic (`@mirowler/core`). See [packages/core/README.md](./packages/core/README.md)
 - `.claude`: hooks and rules for Claude Code
 
@@ -73,8 +75,9 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
 | `pnpm ai:verify` | `check` + `typecheck` + `test` |
 | `pnpm -F @mirowler/core typecheck` / `test` | core only |
 | `pnpm -F @mirowler/worker typecheck` / `test` / `dev` / `migrate:local` | worker only (`dev` needs `apps/web/dist`; `pnpm dev` builds it) |
-| `pnpm -F @mirowler/worker types:api` | Emit the API type declaration `apps/web` imports (`pnpm typecheck` runs it first) |
+| `pnpm -F @mirowler/worker types:api` | Emit the API type declaration `apps/web` and `apps/cli` import (`pnpm typecheck` runs it first) |
 | `pnpm -F @mirowler/web build` | Build the admin UI into `apps/web/dist` |
+| `node apps/cli/src/cli.ts <group> <action>` / `mcp` | Call the admin API from a terminal / serve it as a stdio MCP server (credential from `MIROWLER_URL` / `MIROWLER_AUTH` or `login <url>`) |
 | `pnpm -F @mirowler/worker deploy:dry-run` | Build the admin UI and the Worker bundle without deploying |
 | `pnpm -F @mirowler/worker migrate:remote` / `deploy:remote` | Apply remote D1 migrations / build the admin UI and deploy the Worker (the Release workflow runs these) |
 

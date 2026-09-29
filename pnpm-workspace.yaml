@@ -9,3 +9,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - miniflare@5.20260925.0-alpha
   - wrangler@4.141.0
+  - '@modelcontextprotocol/sdk@1.31.0'
