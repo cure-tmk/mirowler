@@ -27,6 +27,7 @@ case "$ABS_PATH" in
 "$PROJECT_DIR"/packages/core/tsconfig.json) PACKAGE="core" ;;
 "$PROJECT_DIR"/apps/worker/tsconfig.json) PACKAGE="worker" ;;
 "$PROJECT_DIR"/apps/web/tsconfig.json) PACKAGE="web" ;;
+"$PROJECT_DIR"/apps/cli/tsconfig.json) PACKAGE="cli" ;;
 "$PROJECT_DIR"/packages/core/*)
 	case "$ABS_PATH" in
 	*.ts | *.tsx) PACKAGE="core" ;;
@@ -40,6 +41,11 @@ case "$ABS_PATH" in
 "$PROJECT_DIR"/apps/web/*)
 	case "$ABS_PATH" in
 	*.ts | *.tsx) PACKAGE="web" ;;
+	esac
+	;;
+"$PROJECT_DIR"/apps/cli/*)
+	case "$ABS_PATH" in
+	*.ts) PACKAGE="cli" ;;
 	esac
 	;;
 esac

@@ -23,6 +23,8 @@ A basis for picking a verification command proportionate to the change.
 - Changes under `apps/web/`
   - `pnpm turbo run typecheck --filter=@mirowler/web` (emits the Worker's API types first) and `pnpm -F @mirowler/web build`
   - For visible changes, run `pnpm dev` and check the page in a browser
+- Changes under `apps/cli/`
+  - `pnpm turbo run typecheck --filter=@mirowler/cli` and `pnpm -F @mirowler/cli test`
 - `package.json`, `biome.json`, `tsconfig.base.json`, CI config changes
   - `pnpm ai:verify:fast`
 - High-risk or cross-cutting changes

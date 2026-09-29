@@ -7,7 +7,7 @@ A single Cloudflare Worker that serves the API, the admin UI built by `@mirowler
 ## Directories
 
 - `src/http`: Hono API and Basic auth
-- `src/api.ts`: the API route types `@mirowler/web` imports, emitted to `dist/api` by `pnpm -F @mirowler/worker types:api`
+- `src/api.ts`: the API route types `@mirowler/web` and `@mirowler/cli` import, emitted to `dist/api` by `pnpm -F @mirowler/worker types:api`
 - `src/scheduled`: cron handler that claims due monitors, runs them, retries pending notifications and deletes history older than the `RETENTION_DAYS` var (default 30, in `wrangler.jsonc`)
 - `src/adapters`: core port implementations (HTTP fetch, HTMLRewriter extraction, Slack notification)
 - `src/db`: small functions wrapping D1 queries
