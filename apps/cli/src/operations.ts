@@ -39,6 +39,7 @@ const configRules = [
   'When the state lives in an attribute, use a css_attr extractor with parse "text".',
   "The evaluator's field must equal the extractor's parse mode.",
   'A change evaluator ignores the trigger.',
+  'When a page renders its content with scripts, use a browser source with a waitForSelector the page renders once that content has loaded, and an interval of at least 15 minutes.',
   'Recommended flow: preview, then monitors_create, monitors_run, and runs_list to check the recorded state.',
 ].join(' ')
 

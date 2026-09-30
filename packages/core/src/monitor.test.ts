@@ -44,6 +44,18 @@ describe('monitorConfigSchema', () => {
     rejects({ source: { type: 'http', url: 'http://example.com' } })
   })
 
+  it('rejects a browser source without a selector to wait for', () => {
+    rejects({ source: { type: 'browser', url: 'https://example.com' } })
+  })
+
+  it('rejects an interval under 15 minutes for a browser source', () => {
+    const source = { type: 'browser', url: 'https://example.com', waitForSelector: '.price' }
+    const at = (minutes: number) =>
+      monitorConfigSchema.safeParse({ ...valid, source, schedule: { type: 'interval', minutes } })
+    expect(at(15).success).toBe(true)
+    expect(at(14).error?.issues[0]?.path).toEqual(['schedule', 'minutes'])
+  })
+
   it('rejects duplicate channel ids', () => {
     rejects({ channelIds: ['c1', 'c1'] })
   })

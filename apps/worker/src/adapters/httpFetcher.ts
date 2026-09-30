@@ -1,6 +1,6 @@
 import type { Fetcher } from '@mirowler/core'
 
-const MAX_BODY_BYTES = 2 * 1024 * 1024
+export const MAX_BODY_BYTES = 2 * 1024 * 1024
 const MAX_REDIRECTS = 5
 const CHARSET_SNIFF_BYTES = 2048
 
