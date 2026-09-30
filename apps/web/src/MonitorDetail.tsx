@@ -2,11 +2,12 @@ import { type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryCli
 import { Link as RouterLink, useNavigate, useParams } from '@tanstack/react-router'
 import { parseResponse } from 'hono/client'
 import { useCallback, useEffect, useState } from 'react'
-import { HStack, Stack } from 'styled-system/jsx'
+import { css, cx } from 'styled-system/css'
+import { Box, HStack, Stack } from 'styled-system/jsx'
 import { client, httpStatus } from '~/api'
 import { Badge, Button, Heading, Link, Table } from '~/components/ui'
 import { formatRate, formatState, formatTime, formatValue } from '~/format'
-import { HealthBadges } from '~/MonitorList'
+import { HealthBadges, wrapAnywhere } from '~/MonitorList'
 
 const monitorApi = client.api.monitors[':id']
 
@@ -78,10 +79,10 @@ const MonitorPage = ({ monitorId }: { monitorId: string }) => {
 
 const Summary = ({ monitor }: { monitor: Monitor }) => (
   <Stack gap="2">
-    <Heading as="h1" textStyle="xl">
+    <Heading as="h1" textStyle="xl" className={wrapAnywhere}>
       {monitor.name}
     </Heading>
-    <Link href={monitor.source.url} target="_blank" rel="noreferrer">
+    <Link href={monitor.source.url} target="_blank" rel="noreferrer" className={wrapAnywhere}>
       {monitor.source.url}
     </Link>
     <HealthBadges monitor={monitor} />
@@ -261,21 +262,23 @@ const History = ({
       ) : all.length === 0 ? (
         <p>No runs yet</p>
       ) : (
-        <Table.Root>
-          <Table.Head>
-            <Table.Row>
-              <Table.Header>Scheduled</Table.Header>
-              <Table.Header>Finished</Table.Header>
-              <Table.Header>Status</Table.Header>
-              <Table.Header>State</Table.Header>
-              <Table.Header>Value</Table.Header>
-              <Table.Header>Details</Table.Header>
-            </Table.Row>
-          </Table.Head>
-          {all.map((run) => (
-            <RunRows key={run.runId} run={run} />
-          ))}
-        </Table.Root>
+        <Box overflowX="auto">
+          <Table.Root>
+            <Table.Head>
+              <Table.Row>
+                <Table.Header>Scheduled</Table.Header>
+                <Table.Header>Finished</Table.Header>
+                <Table.Header>Status</Table.Header>
+                <Table.Header>State</Table.Header>
+                <Table.Header>Value</Table.Header>
+                <Table.Header>Details</Table.Header>
+              </Table.Row>
+            </Table.Head>
+            {all.map((run) => (
+              <RunRows key={run.runId} run={run} />
+            ))}
+          </Table.Root>
+        </Box>
       )}
       {runs.hasNextPage && (
         <Button
@@ -303,11 +306,11 @@ const RunRows = ({ run }: { run: HistoryRun }) => (
       <Table.Cell>{statusLabels[run.status] ?? run.status}</Table.Cell>
       <Table.Cell>{formatState(run.state)}</Table.Cell>
       <Table.Cell>{formatValue(run.value)}</Table.Cell>
-      <Table.Cell>{run.error ?? run.reason ?? ''}</Table.Cell>
+      <Table.Cell className={cx(wrapAnywhere, css({ minW: '16rem' }))}>{run.error ?? run.reason ?? ''}</Table.Cell>
     </Table.Row>
     {run.events.map((event) => (
       <Table.Row key={event.id}>
-        <Table.Cell colSpan={6}>
+        <Table.Cell colSpan={6} className={wrapAnywhere}>
           <Stack gap="1" ps="4">
             <p>
               <strong>{event.kind === 'entered' ? 'Entered' : 'Value changed'}</strong>: {event.summary}

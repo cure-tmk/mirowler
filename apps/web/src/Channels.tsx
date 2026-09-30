@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link as RouterLink } from '@tanstack/react-router'
 import { parseResponse } from 'hono/client'
 import { type FormEvent, useState } from 'react'
-import { HStack, Stack } from 'styled-system/jsx'
+import { Box, HStack, Stack } from 'styled-system/jsx'
 import { client, errorBody, httpStatus } from '~/api'
 import { Badge, Button, Field, Heading, Input, Link, Table } from '~/components/ui'
 import { formatTime } from '~/format'
@@ -46,22 +46,24 @@ export const Channels = () => {
       ) : data.length === 0 ? (
         <p>No channels yet</p>
       ) : (
-        <Table.Root>
-          <Table.Head>
-            <Table.Row>
-              <Table.Header>Name</Table.Header>
-              <Table.Header>Secret name</Table.Header>
-              <Table.Header>Secret</Table.Header>
-              <Table.Header>Created</Table.Header>
-              <Table.Header />
-            </Table.Row>
-          </Table.Head>
-          <Table.Body>
-            {data.map((channel) => (
-              <ChannelRow key={channel.id} channel={channel} />
-            ))}
-          </Table.Body>
-        </Table.Root>
+        <Box overflowX="auto">
+          <Table.Root>
+            <Table.Head>
+              <Table.Row>
+                <Table.Header>Name</Table.Header>
+                <Table.Header>Secret name</Table.Header>
+                <Table.Header>Secret</Table.Header>
+                <Table.Header>Created</Table.Header>
+                <Table.Header />
+              </Table.Row>
+            </Table.Head>
+            <Table.Body>
+              {data.map((channel) => (
+                <ChannelRow key={channel.id} channel={channel} />
+              ))}
+            </Table.Body>
+          </Table.Root>
+        </Box>
       )}
       <CreateChannel />
     </Stack>
