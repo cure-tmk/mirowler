@@ -9,7 +9,7 @@ A single Cloudflare Worker that serves the API, the admin UI built by `@mirowler
 - `src/http`: Hono API and Basic auth
 - `src/api.ts`: the API route types `@mirowler/web` and `@mirowler/cli` import, emitted to `dist/api` by `pnpm -F @mirowler/worker types:api`
 - `src/scheduled`: cron handler that claims due monitors, runs them, retries pending notifications and deletes history older than the `RETENTION_DAYS` var (default 30, in `wrangler.jsonc`)
-- `src/adapters`: core port implementations (HTTP fetch, HTMLRewriter extraction, Slack notification)
+- `src/adapters`: core port implementations (HTTP fetch, Browser Rendering fetch, HTMLRewriter extraction, Slack notification)
 - `src/db`: small functions wrapping D1 queries
 - `migrations`: D1 schema
 
@@ -76,6 +76,20 @@ An absolute threshold and a relative drop are separate monitors:
 Daily schedules take an IANA time zone name such as `Asia/Tokyo`.
 A `change` monitor notifies on every observation that qualifies against the previous valid one, so each further drop notifies again; `trigger.type` is ignored for `change` evaluators.
 A price that cannot be found or parsed, or that is zero or negative, yields `unknown`, which never notifies and never moves the baseline.
+
+## Registering a browser monitor
+
+Use a `browser` source when the watched value is rendered by scripts after page load, so the HTML a plain fetch gets does not contain it.
+The Worker's `browser` binding renders the page with Browser Rendering's `content` quick action and hands the rendered HTML to the same extractors; no API token is needed.
+
+- `waitForSelector` is required: the render returns once that element appears, and fails with the reason after 20 seconds. Waiting for network idle is not offered because tracking scripts keep many pages busy indefinitely.
+- Pick a `waitForSelector` that appears whether or not the condition matches. Waiting on a stock marker would turn "marker absent" into a timeout (`unknown`) instead of `not_matched`. In the web form, an empty field uses the extractor selector, which suits a price.
+- Tracking requests are blocked to save browser time. Stylesheets and images are not, because blocking stylesheets breaks rendering on some pages.
+- Within one tick, browser monitors run one at a time, 10 seconds apart, to stay under the quick action rate limit. A 429 or 5xx from Browser Rendering backs off like a throttled fetch.
+
+Browser Rendering bills browser time, and Workers Free allows 10 minutes a day and one quick action every 10 seconds for the whole account.
+A render measured about 3.4 seconds of browser time, so a `browser` source is limited to an interval of 15 minutes or more (96 renders, about 5.5 minutes a day).
+Keep the sum over all browser monitors, plus previews and manual runs, under the daily cap; once it is reached, runs fail until the next day.
 
 ## Run locally
 
