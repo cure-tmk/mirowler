@@ -1,6 +1,6 @@
 import { Field as ArkField } from '@ark-ui/react/field'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { evaluatorSchema, type MonitorConfig, monitorConfigSchema } from '@mirowler/core'
+import { BROWSER_MIN_INTERVAL_MINUTES, evaluatorSchema, type MonitorConfig, monitorConfigSchema } from '@mirowler/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link as RouterLink, useNavigate, useParams } from '@tanstack/react-router'
 import { parseResponse } from 'hono/client'
@@ -44,6 +44,7 @@ const Select = (props: ComponentProps<typeof StyledSelect>) => <StyledSelect app
 const timeZones = Intl.supportedValuesOf?.('timeZone') ?? []
 
 const labels = {
+  source: { http: 'Fetch the HTML', browser: 'Render in a browser' },
   schedule: { interval: 'Every few minutes', daily: 'Once a day' },
   extractor: { css_text: 'Text of an element', css_attr: 'Attribute of an element' },
   parse: { text: 'Text', jpy: 'Price in yen' },
@@ -107,13 +108,24 @@ const options = <K extends string>(names: Record<K, string>, keys = Object.keys(
     </option>
   ))
 
-const FormField = ({ name, label, children }: { name: FieldPath<FormValues>; label: string; children: ReactNode }) => {
+const FormField = ({
+  name,
+  label,
+  hint,
+  children,
+}: {
+  name: FieldPath<FormValues>
+  label: string
+  hint?: string
+  children: ReactNode
+}) => {
   const { errors } = useFormState<FormValues>({ name })
   const message: string | undefined = get(errors, name)?.message
   return (
     <Field.Root invalid={message !== undefined}>
       <Field.Label>{label}</Field.Label>
       {children}
+      {hint && <Field.HelperText>{hint}</Field.HelperText>}
       <Field.ErrorText>{message}</Field.ErrorText>
     </Field.Root>
   )
@@ -161,12 +173,35 @@ const ScheduleFields = () => {
 
 const ExtractionFields = () => {
   const { register, control } = useFormContext<FormValues>()
-  const type = useWatch({ control, name: 'extractor.type' })
+  const [sourceType, type, selector] = useWatch({
+    control,
+    name: ['source.type', 'extractor.type', 'extractor.selector'],
+  })
   return (
     <Stack gap="4">
+      <FormField
+        name="source.type"
+        label="Fetch"
+        hint={
+          sourceType === 'browser'
+            ? `For pages that load their content with scripts; each run uses browser time, so runs are at least ${BROWSER_MIN_INTERVAL_MINUTES} minutes apart`
+            : undefined
+        }
+      >
+        <Select {...register('source.type')}>{options(labels.source)}</Select>
+      </FormField>
       <FormField name="source.url" label="Page URL">
         <Input type="url" placeholder="https://" {...register('source.url')} />
       </FormField>
+      {sourceType === 'browser' && (
+        <FormField
+          name="source.waitForSelector"
+          label="Wait for CSS selector"
+          hint="The page is read once this element appears; for a stock marker, pick an element that appears either way. Empty uses the CSS selector below"
+        >
+          <Input placeholder={selector} {...register('source.waitForSelector')} />
+        </FormField>
+      )}
       <FormField name="extractor.type" label="Read">
         <Select {...register('extractor.type')}>{options(labels.extractor)}</Select>
       </FormField>
@@ -189,7 +224,7 @@ const PreviewPanel = () => {
   const { getValues, setError, trigger, watch, getFieldState } = useFormContext<FormValues>()
   const preview = useMutation({
     mutationFn: async () => {
-      if (!(await trigger(['source.url', 'extractor.selector', 'extractor.attribute']))) {
+      if (!(await trigger(['source.url', 'source.waitForSelector', 'extractor.selector', 'extractor.attribute']))) {
         return null
       }
       const values = getValues()
@@ -222,6 +257,9 @@ const PreviewPanel = () => {
       }
       if (getFieldState(name).error) {
         void trigger(name)
+      }
+      if (name === 'source.type' && getFieldState('schedule.minutes').error) {
+        void trigger('schedule.minutes')
       }
       if (/^(source|extractor|evaluator)\./.test(name)) {
         reset()

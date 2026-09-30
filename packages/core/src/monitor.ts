@@ -80,20 +80,23 @@ const fieldMatchesParse = {
   path: ['evaluator', 'field'],
 }
 
+const monitorConfigShape = z.object({
+  name: z.string().min(1),
+  schedule: scheduleSchema,
+  source: sourceSchema,
+  extractor: extractorSchema,
+  evaluator: evaluatorSchema,
+  trigger: triggerSchema,
+  channelIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, 'must be unique'),
+})
+
+const browserSchedule = z.object({ source: z.object({ type: z.literal('browser') }), schedule: scheduleSchema })
+
 /** Monitor configuration accepted by the admin API and stored as-is. */
-export const monitorConfigSchema = z
-  .object({
-    name: z.string().min(1),
-    schedule: scheduleSchema,
-    source: sourceSchema,
-    extractor: extractorSchema,
-    evaluator: evaluatorSchema,
-    trigger: triggerSchema,
-    channelIds: z
-      .array(z.string().min(1))
-      .min(1)
-      .refine((ids) => new Set(ids).size === ids.length, 'must be unique'),
-  })
+export const monitorConfigSchema = monitorConfigShape
   .refine((c) => c.evaluator.field === c.extractor.parse, fieldMatchesParse)
   .refine(
     (c) =>
@@ -103,6 +106,7 @@ export const monitorConfigSchema = z
     {
       message: `must be at least ${BROWSER_MIN_INTERVAL_MINUTES} minutes for a browser source`,
       path: ['schedule', 'minutes'],
+      when: (payload) => browserSchedule.safeParse(payload.value).success,
     },
   )
 
