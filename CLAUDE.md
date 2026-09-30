@@ -30,4 +30,5 @@ This file is the tool-specific entry point Claude Code follows in this repositor
 - Issue and PR writing: `.claude/rules/writing-issues-and-prs.md`
 - Coding style: `.claude/rules/coding-styles-common.md`, `.claude/rules/coding-styles-core.md`, `.claude/rules/coding-styles-worker.md`
 - Testing: `.claude/rules/testing.md`
+- Turborepo: `.claude/rules/turborepo.md`
 - Hooks configuration: `.claude/settings.json`
