@@ -61,9 +61,9 @@ export const toExtractor = ({ extractor: e }: FormValues) =>
     ? { type: e.type, selector: e.selector.trim(), attribute: e.attribute.trim(), parse: e.parse }
     : { type: e.type, selector: e.selector.trim(), parse: e.parse }
 
-export const toSource = ({ source: s }: FormValues) =>
+export const toSource = ({ source: s, extractor }: FormValues) =>
   s.type === 'browser'
-    ? { type: s.type, url: s.url.trim(), waitForSelector: s.waitForSelector.trim() }
+    ? { type: s.type, url: s.url.trim(), waitForSelector: s.waitForSelector.trim() || extractor.selector.trim() }
     : { type: s.type, url: s.url.trim() }
 
 /** Builds the config candidate from the form, keeping only the fields that apply to the chosen types. */
@@ -86,7 +86,11 @@ export const fromConfig = (c: MonitorConfig): FormValues => ({
     c.schedule.type === 'daily'
       ? { ...defaultValues.schedule, ...c.schedule }
       : { ...defaultValues.schedule, type: 'interval', minutes: String(c.schedule.minutes) },
-  source: { ...defaultValues.source, ...c.source },
+  source: {
+    ...defaultValues.source,
+    ...c.source,
+    ...(c.source.type === 'browser' && c.source.waitForSelector === c.extractor.selector && { waitForSelector: '' }),
+  },
   extractor: { attribute: '', ...c.extractor },
   evaluator: { type: c.evaluator.type, op: c.evaluator.op, value: String(c.evaluator.value ?? '') },
   trigger: c.trigger,

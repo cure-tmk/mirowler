@@ -56,6 +56,16 @@ describe('monitorConfigSchema', () => {
     expect(at(14).error?.issues[0]?.path).toEqual(['schedule', 'minutes'])
   })
 
+  it('reports a browser interval under 15 minutes alongside other invalid fields', () => {
+    const result = monitorConfigSchema.safeParse({
+      ...valid,
+      source: { type: 'browser', url: 'https://example.com', waitForSelector: '' },
+      schedule: { type: 'interval', minutes: 14 },
+      channelIds: [],
+    })
+    expect(result.error?.issues.map((i) => i.path.join('.'))).toContain('schedule.minutes')
+  })
+
   it('rejects duplicate channel ids', () => {
     rejects({ channelIds: ['c1', 'c1'] })
   })
