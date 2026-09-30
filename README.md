@@ -6,7 +6,7 @@ A single Cloudflare Worker that periodically fetches public web pages, extracts 
 
 - One Cloudflare Worker, combining a Hono-based HTTP API, the admin UI's static assets and a Cron Trigger for scheduled runs (the `scheduled` handler), persisted to D1.
 - `packages/core`: the runtime-dependency-free domain layer. Holds monitor types and zod schemas, ports (function types) for interacting with the outside world, and the evaluate / trigger / schedule / parse / run pipeline.
-- `apps/worker`: implements `packages/core`'s ports on the Cloudflare Workers runtime (HTTP fetch, CSS extraction, Slack notification adapters), reads and writes D1, and wires up the Hono API and scheduled execution.
+- `apps/worker`: implements `packages/core`'s ports on the Cloudflare Workers runtime (HTTP fetch, Browser Rendering fetch, CSS extraction, Slack notification adapters), reads and writes D1, and wires up the Hono API and scheduled execution.
 - `apps/web`: the admin UI, a React single-page app the Worker serves as static assets; it talks to the Worker only through `/api`.
 - `apps/cli`: a terminal command and a local stdio MCP server for the admin API, sharing one list of operations; like the web app it is only an `/api` client.
 

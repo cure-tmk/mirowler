@@ -44,6 +44,20 @@ Run it without arguments for the full list: monitors (list, get, create, update,
 - A 2xx response prints its JSON on stdout.
 - A non-2xx response prints the whole response body on stderr and exits 1; a usage error exits 2.
 
+A `browser` monitor body for a page rendered by scripts (see [Registering a browser monitor](../worker/README.md#registering-a-browser-monitor)):
+
+```json
+{
+  "name": "room price, 2 adults, tax incl.",
+  "schedule": { "type": "interval", "minutes": 15 },
+  "source": { "type": "browser", "url": "https://example.com/booking", "waitForSelector": ".total-price" },
+  "extractor": { "type": "css_text", "selector": ".total-price", "parse": "jpy" },
+  "evaluator": { "type": "rule", "field": "jpy", "op": "lt", "value": 20000 },
+  "trigger": { "type": "on_enter" },
+  "channelIds": ["<channel id>"]
+}
+```
+
 ## MCP server
 
 `node apps/cli/src/cli.ts mcp` serves one tool per operation over stdio (`monitors_create`, `runs_list`, ...). Tools that change nothing are marked read-only and the delete tools destructive, so the client's permission prompt can tell them apart. Tool inputs are validated with core's monitor and preview schemas before any request; a non-2xx response becomes a tool error carrying the Worker's body, so the model can fix its input from `issues`.
