@@ -13,11 +13,11 @@ const cartButton = {
 }
 const price = { type: 'css_text', selector: '.price_box_0 p.price_', parse: 'jpy' }
 
-const preview = (body: unknown) =>
+const preview = (body: unknown, bindings: Partial<Env> = {}) =>
   app.request(
     '/api/preview',
     authedInit({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
-    { ...env, ADMIN_BASIC_AUTH: TEST_ADMIN },
+    { ...env, ADMIN_BASIC_AUTH: TEST_ADMIN, ...bindings },
   )
 
 const totalRows = async () => {
@@ -49,6 +49,16 @@ describe('POST /api/preview', () => {
     expect(await res.json()).toEqual({ value: { text: 'カートに入れる' }, state: 'matched' })
     expect(await totalRows()).toBe(0)
     expect(fetch).toHaveBeenLastCalledWith(new URL(source.url), expect.objectContaining({ redirect: 'manual' }))
+  })
+
+  it('extracts from the rendered HTML of a browser source', async () => {
+    const quickAction = async () => Response.json({ success: true, result: inStock, meta: { status: 200, title: '' } })
+    const res = await preview(
+      { source: { type: 'browser', url: source.url, waitForSelector: price.selector }, extractor: price },
+      { BROWSER: { quickAction } as unknown as BrowserRun },
+    )
+
+    expect(await res.json()).toEqual({ value: { jpy: 123456 } })
   })
 
   it('rejects a non-public URL with the monitor create 400 shape', async () => {

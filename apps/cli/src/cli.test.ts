@@ -155,6 +155,27 @@ describe('mcp', () => {
     return client
   }
 
+  it('advertises the browser source and rejects its short interval before any request', async () => {
+    const client = await connect()
+    const { tools } = await client.listTools()
+    const create = tools.find((t) => t.name === 'monitors_create')
+    expect(JSON.stringify(create?.inputSchema)).toContain('waitForSelector')
+
+    const config = {
+      name: 'booking',
+      schedule: { type: 'interval', minutes: 14 },
+      source: { type: 'browser', url: 'https://example.com/', waitForSelector: '.total' },
+      extractor: { type: 'css_text', selector: '.total', parse: 'jpy' },
+      evaluator: { type: 'rule', field: 'jpy', op: 'lt', value: 20000 },
+      trigger: { type: 'on_enter' },
+      channelIds: ['c1'],
+    }
+    const result = await client.callTool({ name: 'monitors_create', arguments: { body: config } })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('browser source')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('maps a non-2xx response to an error result carrying the body', async () => {
     const failure = { error: 'invalid config', issues: [{ path: 'name', message: 'Too small' }] }
     fetchMock.mockResolvedValue(Response.json(failure, { status: 400 }))

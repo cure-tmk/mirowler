@@ -18,7 +18,22 @@ export const scheduleSchema = z.discriminatedUnion('type', [
   }),
 ])
 
-export const sourceSchema = z.object({ type: z.literal('http'), url: z.url({ protocol: /^https$/ }) })
+const httpsUrl = z.url({ protocol: /^https$/ })
+
+export const sourceSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('http'), url: httpsUrl }),
+  z.object({
+    type: z.literal('browser'),
+    url: httpsUrl,
+    waitForSelector: z
+      .string()
+      .min(1)
+      .describe('CSS selector the page renders once the watched content has loaded; the render waits for it'),
+  }),
+])
+
+/** Shortest interval schedule for a `browser` source; each run is billed browser time. */
+export const BROWSER_MIN_INTERVAL_MINUTES = 15
 
 const parseModeSchema = z.enum(['text', 'jpy'])
 
@@ -80,6 +95,16 @@ export const monitorConfigSchema = z
       .refine((ids) => new Set(ids).size === ids.length, 'must be unique'),
   })
   .refine((c) => c.evaluator.field === c.extractor.parse, fieldMatchesParse)
+  .refine(
+    (c) =>
+      c.source.type !== 'browser' ||
+      c.schedule.type !== 'interval' ||
+      c.schedule.minutes >= BROWSER_MIN_INTERVAL_MINUTES,
+    {
+      message: `must be at least ${BROWSER_MIN_INTERVAL_MINUTES} minutes for a browser source`,
+      path: ['schedule', 'minutes'],
+    },
+  )
 
 /** Input of a one-off preview: the parts of a monitor config that fetch, extract and evaluate. */
 export const previewInputSchema = z
@@ -88,6 +113,7 @@ export const previewInputSchema = z
 
 export type Schedule = z.infer<typeof scheduleSchema>
 export type Source = z.infer<typeof sourceSchema>
+export type BrowserSource = Extract<Source, { type: 'browser' }>
 export type ExtractorConfig = z.infer<typeof extractorSchema>
 export type EvaluatorConfig = z.infer<typeof evaluatorSchema>
 export type TriggerConfig = z.infer<typeof triggerSchema>

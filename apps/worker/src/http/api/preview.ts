@@ -1,7 +1,7 @@
 import { evaluateRule, observe, previewInputSchema } from '@mirowler/core'
 import { Hono } from 'hono'
 import { htmlRewriterExtractor } from '../../adapters/htmlRewriterExtractor'
-import { httpFetcher } from '../../adapters/httpFetcher'
+import { sourceFetcher } from '../../adapters/sourceFetcher'
 import type { AppEnv } from '../../env'
 import { parseConfig } from './parseConfig'
 
@@ -15,7 +15,7 @@ export const previewApi = new Hono<AppEnv>().post('/', async (c) => {
     extractorConfig: config.extractor,
     evaluatorConfig: config.evaluator,
     previousValid: null,
-    fetcher: httpFetcher,
+    fetcher: sourceFetcher(c.env.BROWSER),
     extractor: htmlRewriterExtractor,
     evaluator: evaluateRule,
   })

@@ -9,7 +9,7 @@ import {
   runCheck,
 } from '@mirowler/core'
 import { htmlRewriterExtractor } from '../adapters/htmlRewriterExtractor'
-import { httpFetcher } from '../adapters/httpFetcher'
+import { sourceFetcher } from '../adapters/sourceFetcher'
 import { insertEvent } from '../db/events'
 import { type ClaimedMonitor, claimById, claimDue, DAY_MS, finishRun, STALE_MS } from '../db/monitors'
 import { insertPending } from '../db/notifications'
@@ -64,7 +64,7 @@ const execute = async (env: Bindings, monitor: ClaimedMonitor, now: Date, manual
       previousValid,
       runId,
       now: now.toISOString(),
-      fetcher: httpFetcher,
+      fetcher: sourceFetcher(env.BROWSER),
       extractor: htmlRewriterExtractor,
       evaluator: evaluateRule,
     })
@@ -133,16 +133,23 @@ export const runNow = async (env: Bindings, monitorId: string) => {
   return monitor && startRun(env, monitor, now, true)
 }
 
-/** Within one tick, runs monitors sharing a URL host one after another; different hosts run concurrently. */
+// Workers Free allows one Browser Rendering quick action every 10 seconds per account
+const BROWSER_GAP_MS = 10_000
+
+const groupOf = (m: ClaimedMonitor) => (m.source.type === 'browser' ? 'browser' : new URL(m.source.url).host)
+
+/** Within one tick, runs monitors sharing a URL host one after another, and all browser monitors one after another with a gap; groups run concurrently. */
 const runByHost = async (monitors: ClaimedMonitor[], run: (m: ClaimedMonitor) => Promise<unknown>) => {
-  const byHost = new Map<string, ClaimedMonitor[]>()
+  const groups = new Map<string, ClaimedMonitor[]>()
   for (const m of monitors) {
-    const host = new URL(m.source.url).host
-    byHost.set(host, [...(byHost.get(host) ?? []), m])
+    groups.set(groupOf(m), [...(groups.get(groupOf(m)) ?? []), m])
   }
   await Promise.all(
-    [...byHost.values()].map(async (group) => {
-      for (const m of group) {
+    [...groups.values()].map(async (group) => {
+      for (const [i, m] of group.entries()) {
+        if (i > 0 && m.source.type === 'browser') {
+          await scheduler.wait(BROWSER_GAP_MS)
+        }
         await run(m).catch((e) => console.error('monitor run failed', m.id, e))
       }
     }),

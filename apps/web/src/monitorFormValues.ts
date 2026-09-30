@@ -1,4 +1,4 @@
-import type { EvaluatorConfig, ExtractorConfig, MonitorConfig } from '@mirowler/core'
+import type { EvaluatorConfig, ExtractorConfig, MonitorConfig, Source } from '@mirowler/core'
 
 type ParseMode = ExtractorConfig['parse']
 type EvaluatorType = EvaluatorConfig['type']
@@ -7,7 +7,7 @@ type Op = EvaluatorConfig['op']
 export type FormValues = {
   name: string
   schedule: { type: 'interval' | 'daily'; minutes: string; time: string; timezone: string }
-  source: { url: string }
+  source: { type: Source['type']; url: string; waitForSelector: string }
   extractor: { type: ExtractorConfig['type']; selector: string; attribute: string; parse: ParseMode }
   evaluator: { type: EvaluatorType; op: Op; value: string }
   trigger: MonitorConfig['trigger']
@@ -17,7 +17,7 @@ export type FormValues = {
 export const defaultValues: FormValues = {
   name: '',
   schedule: { type: 'interval', minutes: '60', time: '09:00', timezone: 'Asia/Tokyo' },
-  source: { url: '' },
+  source: { type: 'http', url: '', waitForSelector: '' },
   extractor: { type: 'css_text', selector: '', attribute: '', parse: 'text' },
   evaluator: { type: 'rule', op: 'contains', value: '' },
   trigger: { type: 'on_enter' },
@@ -61,7 +61,10 @@ export const toExtractor = ({ extractor: e }: FormValues) =>
     ? { type: e.type, selector: e.selector.trim(), attribute: e.attribute.trim(), parse: e.parse }
     : { type: e.type, selector: e.selector.trim(), parse: e.parse }
 
-export const toSource = (v: FormValues) => ({ type: 'http' as const, url: v.source.url.trim() })
+export const toSource = ({ source: s }: FormValues) =>
+  s.type === 'browser'
+    ? { type: s.type, url: s.url.trim(), waitForSelector: s.waitForSelector.trim() }
+    : { type: s.type, url: s.url.trim() }
 
 /** Builds the config candidate from the form, keeping only the fields that apply to the chosen types. */
 export const toConfig = (v: FormValues) => ({
@@ -83,7 +86,7 @@ export const fromConfig = (c: MonitorConfig): FormValues => ({
     c.schedule.type === 'daily'
       ? { ...defaultValues.schedule, ...c.schedule }
       : { ...defaultValues.schedule, type: 'interval', minutes: String(c.schedule.minutes) },
-  source: { url: c.source.url },
+  source: { ...defaultValues.source, ...c.source },
   extractor: { attribute: '', ...c.extractor },
   evaluator: { type: c.evaluator.type, op: c.evaluator.op, value: String(c.evaluator.value ?? '') },
   trigger: c.trigger,
