@@ -10,6 +10,7 @@
     "run_worker_first": ["/api", "/api/*", "/healthz", "/__scheduled"]
   },
   "vars": { "RETENTION_DAYS": 30 },
+  "browser": { "binding": "BROWSER" },
   "triggers": { "crons": ["* * * * *"] },
   "d1_databases": [
     {
