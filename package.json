@@ -18,7 +18,7 @@
     "ai:verify:fast": "pnpm check && pnpm typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
+    "@biomejs/biome": "2.5.15",
     "@commitlint/cli": "21.2.3",
     "@commitlint/types": "21.2.3",
     "conventional-changelog-conventionalcommits": "10.4.0",
