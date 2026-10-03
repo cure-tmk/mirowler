@@ -23,6 +23,6 @@
     "@commitlint/types": "21.2.3",
     "conventional-changelog-conventionalcommits": "10.4.0",
     "turbo": "2.11.7",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   }
 }
