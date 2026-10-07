@@ -10,7 +10,7 @@
     "typecheck": "pnpm codegen && tsc --noEmit"
   },
   "dependencies": {
-    "@ark-ui/react": "5.39.2",
+    "@ark-ui/react": "5.39.3",
     "@hookform/resolvers": "5.9.1",
     "@mirowler/core": "workspace:*",
     "@tanstack/react-query": "5.104.1",
