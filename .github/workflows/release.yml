@@ -35,7 +35,7 @@ jobs:
           git checkout "$TAG"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
