@@ -14,7 +14,7 @@
     "@mirowler/core": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",
     "hono": "4.13.13",
-    "zod": "4.6.5"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@mirowler/worker": "workspace:*",
