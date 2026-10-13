@@ -27,6 +27,6 @@
     "@cloudflare/vitest-pool-workers": "0.23.0",
     "vitest": "4.1.11",
     "wrangler": "4.149.0",
-    "zod": "4.6.6"
+    "zod": "4.6.7"
   }
 }
